@@ -81,6 +81,9 @@ config.text_blink_rate = 0
 -- Scrollback (default 3500 - increase for long Claude outputs)
 config.scrollback_lines = 15000
 
+-- Suppress notifications when focused on the source pane (Claude Code uses OSC 777)
+config.notification_handling = "SuppressFromFocusedPane"
+
 -- Dim inactive panes (visual feedback for which pane has focus)
 config.inactive_pane_hsb = {
   saturation = 0.9,
