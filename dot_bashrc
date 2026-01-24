@@ -112,20 +112,87 @@ alias cc='claude --dangerously-skip-permissions'
 
 if command -v wsl.exe &>/dev/null; then
 
+# Helper: ensure Windows worktree exists for a branch
+_ensure_win_worktree() {
+    local branch="$1"
+    local workspace="${WORKSPACE_ROOT:-/e/projects/main_workspace}"
+    local main_repo="$workspace/quinlan"
+    local suffix="${branch##*/}"
+    local win_dir="quinlan-$suffix"
+    local win_path="$workspace/$win_dir"
+
+    if [[ ! -d "$main_repo/.git" && ! -f "$main_repo/.git" ]]; then
+        echo "Error: main repo not found at $main_repo"
+        return 1
+    fi
+
+    # Ensure branch exists locally (create from origin/main if missing)
+    if ! git -C "$main_repo" rev-parse --verify "$branch" &>/dev/null; then
+        if git -C "$main_repo" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
+            git -C "$main_repo" fetch origin "$branch" &>/dev/null || true
+            git -C "$main_repo" branch "$branch" "origin/$branch"
+        else
+            echo "Creating branch $branch from main..."
+            git -C "$main_repo" fetch origin main &>/dev/null || true
+            if git -C "$main_repo" rev-parse --verify origin/main &>/dev/null; then
+                git -C "$main_repo" branch "$branch" "origin/main"
+            else
+                git -C "$main_repo" branch "$branch" "main"
+            fi
+        fi
+    fi
+
+    # Create worktree if missing
+    if [[ ! -d "$win_path/.git" && ! -f "$win_path/.git" ]]; then
+        echo "Creating Windows worktree: $win_path (branch: $branch)"
+        git -C "$main_repo" worktree add "$win_path" "$branch" || {
+            echo "Error: Failed to create Windows worktree."
+            return 1
+        }
+    fi
+
+    git -C "$win_path" config core.autocrlf input
+    printf '%s' "$win_path"
+}
+
 # Helper: ensure WSL worktree exists and is on the right branch
 # Only syncs if branch differs or worktree doesn't exist
 _ensure_wsl_worktree() {
     local win_dir="$1"
+    local branch="${2:-}"
+    local main_repo="${3:-}"
     local wsl_base="/home/chimern/projects"
     local wsl_path="$wsl_base/$win_dir"
-    local branch
-    branch=$(git branch --show-current)
+    if [[ -z "$branch" ]]; then
+        branch=$(git branch --show-current)
+    fi
+    if [[ -z "$main_repo" ]]; then
+        main_repo=$(git rev-parse --show-toplevel 2>/dev/null)
+    fi
+    if [[ -z "$branch" ]]; then
+        echo "Error: Unable to determine branch for WSL worktree."
+        return 1
+    fi
+
+    # Ensure branch exists on origin (required for WSL to access it)
+    if ! git -C "$main_repo" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
+        echo "Pushing $branch to origin for WSL sync..."
+        git -C "$main_repo" push -u origin "$branch" || { echo "Failed to push branch"; return 1; }
+    fi
 
     # Check if WSL worktree exists
     if ! wsl -- bash -c "[ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]" 2>/dev/null; then
         echo "Creating WSL worktree: $wsl_path (branch: $branch)"
-        wsl -- bash -c "cd $wsl_base/quinlan && git fetch origin" 2>/dev/null
-        wsl -- bash -c "cd $wsl_base/quinlan && git worktree add ../$win_dir origin/$branch 2>/dev/null || git worktree add -b $branch ../$win_dir origin/$branch 2>/dev/null || git worktree add ../$win_dir $branch" 2>/dev/null
+        if ! wsl -- bash -c "cd $wsl_base/quinlan && git fetch origin"; then
+            echo "Error: Failed to fetch in WSL. Is $wsl_base/quinlan a valid repo?"
+            return 1
+        fi
+        if ! wsl -- bash -c "cd $wsl_base/quinlan && git worktree add '$wsl_path' 'origin/$branch'"; then
+            echo "Error: Failed to create worktree. Check if branch exists and worktree isn't already registered."
+            echo "Try: wsl -- bash -c 'cd $wsl_base/quinlan && git worktree list'"
+            return 1
+        fi
+        wsl -- bash -c "cd $wsl_path && git config core.autocrlf input" 2>/dev/null || true
     else
         # Check if already on correct branch
         local wsl_branch
@@ -134,8 +201,12 @@ _ensure_wsl_worktree() {
             echo "Switching WSL worktree: $wsl_path → $branch"
             wsl -- bash -c "cd $wsl_path && git fetch origin && git checkout $branch 2>/dev/null; git pull --ff-only 2>/dev/null || true" 2>/dev/null
         fi
+        wsl -- bash -c "cd $wsl_path && git config core.autocrlf input" 2>/dev/null || true
         # Already on correct branch - skip sync for speed
     fi
+
+    # Generate AGENTS.md for Codex (concatenate main + local context)
+    wsl -- bash -c "cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/AGENTS.md'" 2>/dev/null || true
 }
 
 # Codex in WSL - maps Windows worktree to WSL equivalent, creates if needed
@@ -221,27 +292,74 @@ unwip() {
 }
 
 # Dev layout: 2x2 panes with Claude Code (top, bash) and Codex (bottom, WSL)
-# Usage: dev [directory]
+# Usage: dev [directory|branch]
 dev() {
-    local dir="${1:-$(pwd)}"
-    local win_dir
-    win_dir=$(basename "$dir")
-    local wsl_path="/home/chimern/projects/$win_dir"
-    local tab_name="$win_dir"
+    local arg="${1:-}"
+    local dir=""
+    local branch=""
+    local win_dir=""
+    local wsl_path=""
+    local tab_name=""
+    local workspace="${WORKSPACE_ROOT:-/e/projects/main_workspace}"
+    local main_repo="$workspace/quinlan"
 
-    # Check if we're in a quinlan worktree
-    if [[ ! "$win_dir" == quinlan* ]]; then
-        echo "Error: Not in a quinlan worktree (current: $win_dir)"
+    if [[ -z "$arg" ]]; then
+        dir="$(pwd)"
+    elif [[ -d "$arg" ]] || [[ "$arg" == /* ]] || [[ "$arg" == ./* ]] || [[ "$arg" == ../* ]]; then
+        dir="$arg"
+    elif [[ "$arg" == */* ]]; then
+        branch="$arg"
+    else
+        echo "Error: '$arg' doesn't look like a path or branch."
+        echo ""
+        echo "Usage:"
+        echo "  dev                     # Open layout in current worktree"
+        echo "  dev feat/my-feature     # Create/open worktree for branch"
+        echo "  dev /path/to/worktree   # Open layout for existing path"
+        echo ""
+        echo "Branch prefixes: feat/ fix/ chore/ docs/ hotfix/ experiment/"
         return 1
     fi
 
-    # Ensure WSL worktree exists and is on correct branch
-    (cd "$dir" && _ensure_wsl_worktree "$win_dir")
+    if [[ -n "$branch" ]]; then
+        local suffix="${branch##*/}"
+        win_dir="quinlan-$suffix"
+        dir="$(_ensure_win_worktree "$branch")" || return 1
+        dir="$(cd "$dir" && pwd)" || return 1
+        wsl_path="/home/chimern/projects/$win_dir"
+        _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
+    else
+        if [[ ! -d "$dir" ]]; then
+            echo "Error: Directory not found: $dir"
+            return 1
+        fi
+        dir="$(cd "$dir" && pwd)"
+        if ! git -C "$dir" rev-parse --is-inside-work-tree &>/dev/null; then
+            echo "Error: Not a git worktree: $dir"
+            return 1
+        fi
+        win_dir=$(basename "$dir")
+        if [[ ! "$win_dir" == quinlan* ]]; then
+            echo "Error: Not in a quinlan worktree (current: $win_dir)"
+            return 1
+        fi
+        wsl_path="/home/chimern/projects/$win_dir"
+        git -C "$dir" config core.autocrlf input
+        branch=$(git -C "$dir" branch --show-current 2>/dev/null)
+        if [[ -z "$branch" ]]; then
+            echo "Error: Unable to determine branch for $dir"
+            return 1
+        fi
+        main_repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
+        _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
+    fi
+
+    cd "$dir" || return 1
+    tab_name="$win_dir"
 
     # Use current pane as top-left (no new tab)
-    # Note: multiple panes can be "active" (one per tab), so take first match
     local top_left
-    top_left=$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')
+    top_left=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
 
     # Top row: split right for second Claude Code pane
     local top_right
@@ -258,10 +376,12 @@ dev() {
     wezterm cli send-text --pane-id "$top_left" $'cc\n'
     wezterm cli send-text --pane-id "$top_right" $'cc\n'
 
-    # Bottom: WSL takes longer to start
-    sleep 1
-    wezterm cli send-text --pane-id "$bottom_left" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
-    wezterm cli send-text --pane-id "$bottom_right" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
+    # Bottom: WSL takes longer to start (2s for shell prompt to be ready)
+    sleep 2
+    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+"
+    wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+"
 
     echo "Dev layout '$tab_name' ready: 2x Claude Code (bash, top), 2x Codex (WSL, bottom)"
 }
@@ -292,4 +412,3 @@ p() {
         echo "WSL worktree sync started in background"
     fi
 }
-
