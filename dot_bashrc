@@ -1,0 +1,295 @@
+# Quinlan Git Bash profile (Windows native)
+export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
+
+if [[ "$PATH" == *";"* ]] && [[ -x /usr/bin/cygpath ]]; then
+    PATH="$(/usr/bin/cygpath -u -p "$PATH")"
+fi
+
+if [ -d /usr/bin ]; then
+    case ":$PATH:" in
+        *":/usr/bin:"*) ;;
+        *) export PATH="/usr/bin:$PATH" ;;
+    esac
+fi
+
+if [ -d /mingw64/bin ]; then
+    case ":$PATH:" in
+        *":/mingw64/bin:"*) ;;
+        *) export PATH="/mingw64/bin:$PATH" ;;
+    esac
+fi
+
+_win_path() {
+    local value="$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -u "$value"
+        return
+    fi
+    if [ -x /usr/bin/cygpath ]; then
+        /usr/bin/cygpath -u "$value"
+        return
+    fi
+    printf '%s' "${value//\\//}"
+}
+
+if [ -n "$LOCALAPPDATA" ]; then
+    win_links="$(_win_path "$LOCALAPPDATA")/Microsoft/WinGet/Links"
+    if [ -d "$win_links" ]; then
+        export PATH="$win_links:$PATH"
+    fi
+fi
+
+if [ -d "$HOME/.local/bin" ]; then
+    case ":$PATH:" in
+        *":$HOME/.local/bin:"*) ;;
+        *) export PATH="$HOME/.local/bin:$PATH" ;;
+    esac
+fi
+
+if [ -n "$APPDATA" ]; then
+    npm_bin="$(_win_path "$APPDATA")/npm"
+    if [ -d "$npm_bin" ]; then
+        case ":$PATH:" in
+            *":$npm_bin:"*) ;;
+            *) export PATH="$npm_bin:$PATH" ;;
+        esac
+    fi
+fi
+
+if [ -n "$LOCALAPPDATA" ]; then
+    uv_bin="$(_win_path "$LOCALAPPDATA")/uv/bin"
+    if [ -d "$uv_bin" ]; then
+        case ":$PATH:" in
+            *":$uv_bin:"*) ;;
+            *) export PATH="$uv_bin:$PATH" ;;
+        esac
+    fi
+fi
+
+if command -v mise >/dev/null 2>&1; then
+    if [ -n "$LOCALAPPDATA" ]; then
+        mise_shims="$(_win_path "$LOCALAPPDATA")/mise/shims"
+        if [ -d "$mise_shims" ]; then
+            case ":$PATH:" in
+                *":$mise_shims:"*) ;;
+                *) export PATH="$mise_shims:$PATH" ;;
+            esac
+        fi
+    fi
+fi
+
+unset -f _win_path
+
+# Auto-source project env when entering a repo with scripts/dev/env.sh
+# This runs on every prompt but only sources if we've changed directories into a new project.
+_quinlan_auto_env() {
+    local dir="$PWD"
+    # Walk up to find repo root (look for scripts/dev/env.sh marker)
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/scripts/dev/env.sh" ]]; then
+            # Only source if we haven't already for this repo root
+            if [[ "$_QUINLAN_ENV_ROOT" != "$dir" ]]; then
+                # shellcheck source=/dev/null
+                source "$dir/scripts/dev/env.sh"
+            fi
+            return
+        fi
+        dir="$(dirname "$dir")"
+    done
+}
+PROMPT_COMMAND="_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+
+# ---------------------------------------------------------------------------
+# Agent commands
+# ---------------------------------------------------------------------------
+
+# Claude Code (Windows native, Git Bash) - works for everyone
+alias cc='claude --dangerously-skip-permissions'
+
+# ---------------------------------------------------------------------------
+# WSL integration (Timon's Codex workflow - only loads if WSL available)
+# ---------------------------------------------------------------------------
+
+if command -v wsl.exe &>/dev/null; then
+
+# Helper: ensure WSL worktree exists and is on the right branch
+# Only syncs if branch differs or worktree doesn't exist
+_ensure_wsl_worktree() {
+    local win_dir="$1"
+    local wsl_base="/home/chimern/projects"
+    local wsl_path="$wsl_base/$win_dir"
+    local branch
+    branch=$(git branch --show-current)
+
+    # Check if WSL worktree exists
+    if ! wsl -- bash -c "[ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]" 2>/dev/null; then
+        echo "Creating WSL worktree: $wsl_path (branch: $branch)"
+        wsl -- bash -c "cd $wsl_base/quinlan && git fetch origin" 2>/dev/null
+        wsl -- bash -c "cd $wsl_base/quinlan && git worktree add ../$win_dir origin/$branch 2>/dev/null || git worktree add -b $branch ../$win_dir origin/$branch 2>/dev/null || git worktree add ../$win_dir $branch" 2>/dev/null
+    else
+        # Check if already on correct branch
+        local wsl_branch
+        wsl_branch=$(wsl -- bash -c "cd $wsl_path && git branch --show-current" 2>/dev/null)
+        if [[ "$wsl_branch" != "$branch" ]]; then
+            echo "Switching WSL worktree: $wsl_path → $branch"
+            wsl -- bash -c "cd $wsl_path && git fetch origin && git checkout $branch 2>/dev/null; git pull --ff-only 2>/dev/null || true" 2>/dev/null
+        fi
+        # Already on correct branch - skip sync for speed
+    fi
+}
+
+# Codex in WSL - maps Windows worktree to WSL equivalent, creates if needed
+# Usage: c [prompt]
+c() {
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="/home/chimern/projects/$win_dir"
+
+    # Check if we're in a quinlan worktree
+    if [[ ! "$win_dir" == quinlan* ]]; then
+        echo "Error: Not in a quinlan worktree (current: $win_dir)"
+        return 1
+    fi
+
+    # Ensure WSL worktree exists and is synced
+    _ensure_wsl_worktree "$win_dir"
+
+    # Run Codex in WSL (blocking)
+    echo "Starting Codex in WSL: $wsl_path"
+    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd $wsl_path && codex --dangerously-bypass-approvals-and-sandbox $*"
+}
+
+# Codex in WSL pane (non-blocking, opens new wezterm pane)
+# Usage: cpane
+cpane() {
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="/home/chimern/projects/$win_dir"
+
+    # Check if we're in a quinlan worktree
+    if [[ ! "$win_dir" == quinlan* ]]; then
+        echo "Error: Not in a quinlan worktree (current: $win_dir)"
+        return 1
+    fi
+
+    # Ensure WSL worktree exists
+    _ensure_wsl_worktree "$win_dir"
+
+    # Open WSL pane and launch Codex (start in home to avoid /mnt path)
+    local pane
+    pane=$(wezterm cli split-pane --right --percent 40 -- wsl.exe -d Ubuntu --cd "~")
+    sleep 1  # WSL takes longer to start than bash
+    wezterm cli send-text --pane-id "$pane" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
+
+    echo "Codex pane opened in WSL: $wsl_path"
+}
+
+# ---------------------------------------------------------------------------
+# Cross-filesystem sync (Windows <-> WSL)
+# ---------------------------------------------------------------------------
+
+# Create WIP commit for syncing (run on Windows)
+wip() {
+    if [[ -z $(git status --porcelain) ]]; then
+        echo "No changes to commit"
+        return 1
+    fi
+    git add -A && git commit -m "WIP: sync"
+    echo "WIP commit created. Run 'sync' in WSL, then 'unwip' here when done."
+}
+
+# Pull changes from Windows (run in WSL, or from Windows via this wrapper)
+sync() {
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="/home/chimern/projects/$win_dir"
+    wsl -d Ubuntu -- bash -c "cd $wsl_path && git pull windows $(git branch --show-current) --ff-only"
+    echo "WSL synced with Windows"
+}
+
+# Undo WIP commit, keep changes staged (run on Windows after review)
+unwip() {
+    local msg
+    msg=$(git log -1 --format=%s)
+    if [[ "$msg" == "WIP: sync" ]]; then
+        git reset --soft HEAD~1
+        echo "WIP commit undone. Changes are staged."
+    else
+        echo "Last commit isn't a WIP commit: $msg"
+        return 1
+    fi
+}
+
+# Dev layout: 2x2 panes with Claude Code (top, bash) and Codex (bottom, WSL)
+# Usage: dev [directory]
+dev() {
+    local dir="${1:-$(pwd)}"
+    local win_dir
+    win_dir=$(basename "$dir")
+    local wsl_path="/home/chimern/projects/$win_dir"
+    local tab_name="$win_dir"
+
+    # Check if we're in a quinlan worktree
+    if [[ ! "$win_dir" == quinlan* ]]; then
+        echo "Error: Not in a quinlan worktree (current: $win_dir)"
+        return 1
+    fi
+
+    # Ensure WSL worktree exists and is on correct branch
+    (cd "$dir" && _ensure_wsl_worktree "$win_dir")
+
+    # Use current pane as top-left (no new tab)
+    # Note: multiple panes can be "active" (one per tab), so take first match
+    local top_left
+    top_left=$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')
+
+    # Top row: split right for second Claude Code pane
+    local top_right
+    top_right=$(wezterm cli split-pane --right --percent 50 --pane-id "$top_left" --cwd "$dir")
+
+    # Bottom row: WSL panes for Codex (start in home to avoid /mnt path)
+    local bottom_left
+    bottom_left=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_left" -- wsl.exe -d Ubuntu --cd "~")
+    local bottom_right
+    bottom_right=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_right" -- wsl.exe -d Ubuntu --cd "~")
+
+    # Top: launch Claude Code (bash is ready quickly)
+    sleep 0.3
+    wezterm cli send-text --pane-id "$top_left" $'cc\n'
+    wezterm cli send-text --pane-id "$top_right" $'cc\n'
+
+    # Bottom: WSL takes longer to start
+    sleep 1
+    wezterm cli send-text --pane-id "$bottom_left" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
+    wezterm cli send-text --pane-id "$bottom_right" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
+
+    echo "Dev layout '$tab_name' ready: 2x Claude Code (bash, top), 2x Codex (WSL, bottom)"
+}
+
+fi  # end WSL integration
+
+# ---------------------------------------------------------------------------
+# Project picker (fzf)
+# ---------------------------------------------------------------------------
+
+# Project picker: type 'p' to fuzzy-select a project in main_workspace
+# Also ensures WSL worktree exists for quinlan projects (in background)
+p() {
+    local workspace="${WORKSPACE_ROOT:-/e/projects/main_workspace}"
+    local selected
+    selected=$(find "$workspace" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | \
+        sed "s|$workspace/||" | \
+        fzf --height 40% --reverse --prompt="project> ")
+
+    [[ -z "$selected" ]] && return
+
+    cd "$workspace/$selected" || return
+
+    # If it's a quinlan project and WSL is available, sync worktree in background
+    if [[ "$selected" == quinlan* ]] && type _ensure_wsl_worktree &>/dev/null; then
+        (_ensure_wsl_worktree "$selected" &>/dev/null &)
+        disown 2>/dev/null
+        echo "WSL worktree sync started in background"
+    fi
+}
+
