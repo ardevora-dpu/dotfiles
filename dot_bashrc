@@ -122,7 +122,7 @@ _ensure_win_worktree() {
     local win_path="$workspace/$win_dir"
 
     if [[ ! -d "$main_repo/.git" && ! -f "$main_repo/.git" ]]; then
-        echo "Error: main repo not found at $main_repo"
+        echo "Error: main repo not found at $main_repo" >&2
         return 1
     fi
 
@@ -130,23 +130,23 @@ _ensure_win_worktree() {
     if ! git -C "$main_repo" rev-parse --verify "$branch" &>/dev/null; then
         if git -C "$main_repo" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
             git -C "$main_repo" fetch origin "$branch" &>/dev/null || true
-            git -C "$main_repo" branch "$branch" "origin/$branch"
+            git -C "$main_repo" branch "$branch" "origin/$branch" >&2
         else
-            echo "Creating branch $branch from main..."
+            echo "Creating branch $branch from main..." >&2
             git -C "$main_repo" fetch origin main &>/dev/null || true
             if git -C "$main_repo" rev-parse --verify origin/main &>/dev/null; then
-                git -C "$main_repo" branch "$branch" "origin/main"
+                git -C "$main_repo" branch "$branch" "origin/main" >&2
             else
-                git -C "$main_repo" branch "$branch" "main"
+                git -C "$main_repo" branch "$branch" "main" >&2
             fi
         fi
     fi
 
     # Create worktree if missing
     if [[ ! -d "$win_path/.git" && ! -f "$win_path/.git" ]]; then
-        echo "Creating Windows worktree: $win_path (branch: $branch)"
-        git -C "$main_repo" worktree add "$win_path" "$branch" || {
-            echo "Error: Failed to create Windows worktree."
+        echo "Creating Windows worktree: $win_path (branch: $branch)" >&2
+        git -C "$main_repo" worktree add "$win_path" "$branch" >&2 || {
+            echo "Error: Failed to create Windows worktree." >&2
             return 1
         }
     fi
@@ -359,7 +359,8 @@ dev() {
 
     # Use current pane as top-left (no new tab)
     local top_left
-    top_left=$(wezterm cli list --format json | jq -r '.[] | select(.is_active) | .pane_id')
+    # Use current pane (where command is running) as top-left
+    local top_left="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
 
     # Top row: split right for second Claude Code pane
     local top_right
