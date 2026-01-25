@@ -121,8 +121,8 @@ config.keys = {
   { key = '9', mods = 'LEADER', action = act.ActivateTab(8) },
 
   -- Panes: split
-  { key = 'v', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
-  { key = 's', mods = 'LEADER', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
+  { key = 'h', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
+  { key = 'v', mods = 'LEADER', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
 
   -- Panes: navigate (arrow keys)
   { key = 'LeftArrow', mods = 'LEADER', action = act.ActivatePaneDirection('Left') },
