@@ -413,3 +413,8 @@ p() {
         echo "WSL worktree sync started in background"
     fi
 }
+
+# ---------------------------------------------------------------------------
+# Azure CLI fix for Git Bash (MINGW stdout issue)
+# ---------------------------------------------------------------------------
+az() { az.cmd "$@"; }
