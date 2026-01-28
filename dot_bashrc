@@ -206,7 +206,8 @@ _ensure_wsl_worktree() {
     fi
 
     # Generate AGENTS.md for Codex (concatenate main + local context)
-    wsl -- bash -c "cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/AGENTS.md'" 2>/dev/null || true
+    # Avoid clobbering CLAUDE.md if AGENTS.md is a symlink.
+    wsl -- bash -c "if [ -L '$wsl_path/AGENTS.md' ]; then rm -f '$wsl_path/AGENTS.md'; fi; cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/.AGENTS.md.tmp' && mv '$wsl_path/.AGENTS.md.tmp' '$wsl_path/AGENTS.md'" 2>/dev/null || true
 }
 
 # Codex in WSL - maps Windows worktree to WSL equivalent, creates if needed
