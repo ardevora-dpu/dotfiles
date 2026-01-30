@@ -7,7 +7,8 @@ export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
 # Workspace root for project navigation (p, dev functions)
 # Derived from ~/.quinlan-repo (set by /update) — parent directory of the repo
 if [[ -f ~/.quinlan-repo ]]; then
-    export WORKSPACE_ROOT="$(dirname "$(cat ~/.quinlan-repo)")"
+    WORKSPACE_ROOT="$(dirname "$(cat ~/.quinlan-repo)")"
+    export WORKSPACE_ROOT
 fi
 
 # Normalise Windows PATH to MSYS paths when needed.
