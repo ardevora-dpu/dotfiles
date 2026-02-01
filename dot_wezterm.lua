@@ -66,13 +66,18 @@ config.line_height = 1.1
 config.hide_tab_bar_if_only_one_tab = false  -- Always show tab bar (shows workspace)
 config.window_padding = { left = 8, right = 8, top = 8, bottom = 8 }
 
-local function apply_codex_keyboard_overrides(window, pane)
+local function apply_keyboard_overrides(window, pane)
   local proc = (pane:get_foreground_process_name() or ''):lower()
   local title = (pane:get_title() or ''):lower()
+  local domain = pane:get_domain_name() or ''
+
+  -- Disable kitty keyboard for Codex (doesn't support it)
   local is_codex = proc:find('codex', 1, true) or title:find('codex', 1, true)
+  -- Disable kitty keyboard for WSL (causes key handling issues)
+  local is_wsl = domain:find('WSL', 1, true) or proc:find('wsl', 1, true)
 
   local overrides = window:get_config_overrides() or {}
-  local want_kitty = not is_codex
+  local want_kitty = not (is_codex or is_wsl)
 
   if overrides.enable_kitty_keyboard ~= want_kitty
     or overrides.enable_csi_u_key_encoding ~= want_kitty then
@@ -84,7 +89,7 @@ end
 
 -- Show current workspace in right status bar
 wezterm.on('update-status', function(window, pane)
-  apply_codex_keyboard_overrides(window, pane)
+  apply_keyboard_overrides(window, pane)
 
   local workspace = window:active_workspace()
   window:set_right_status(wezterm.format({
