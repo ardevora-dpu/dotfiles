@@ -297,9 +297,18 @@ unwip() {
 }
 
 # Dev layout: 2x2 panes with Claude Code (top, bash) and Codex (bottom, WSL)
-# Usage: dev [directory|branch]
+# Usage: dev [2] [directory|branch]
 dev() {
+    local panes=4
     local arg="${1:-}"
+
+    # Check for pane count argument
+    if [[ "$arg" == "2" ]]; then
+        panes=2
+        shift
+        arg="${1:-}"
+    fi
+
     local dir=""
     local branch=""
     local win_dir=""
@@ -318,8 +327,10 @@ dev() {
         echo "Error: '$arg' doesn't look like a path or branch."
         echo ""
         echo "Usage:"
-        echo "  dev                     # Open layout in current worktree"
+        echo "  dev                     # Open 4-pane layout in current worktree"
+        echo "  dev 2                   # Open 2-pane layout (1 Claude, 1 Codex)"
         echo "  dev feat/my-feature     # Create/open worktree for branch"
+        echo "  dev 2 feat/my-feature   # 2-pane layout for branch"
         echo "  dev /path/to/worktree   # Open layout for existing path"
         echo ""
         echo "Branch prefixes: feat/ fix/ chore/ docs/ hotfix/ experiment/"
@@ -362,34 +373,50 @@ dev() {
     cd "$dir" || return 1
     tab_name="$win_dir"
 
-    # Use current pane as top-left (no new tab)
-    local top_left
-    # Use current pane (where command is running) as top-left
-    local top_left="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
+    # Use current pane as left/top-left
+    local left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
 
-    # Top row: split right for second Claude Code pane
-    local top_right
-    top_right=$(wezterm cli split-pane --right --percent 50 --pane-id "$top_left" --cwd "$dir")
+    if [[ "$panes" == "2" ]]; then
+        # 2-pane layout: Claude Code (left) | Codex (right)
+        local right_pane
+        right_pane=$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")
 
-    # Bottom row: WSL panes for Codex (start in home to avoid /mnt path)
-    local bottom_left
-    bottom_left=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_left" -- wsl.exe -d Ubuntu --cd "~")
-    local bottom_right
-    bottom_right=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_right" -- wsl.exe -d Ubuntu --cd "~")
+        # Launch Claude Code (bash ready quickly)
+        sleep 0.3
+        wezterm cli send-text --pane-id "$left_pane" $'cc\n'
 
-    # Top: launch Claude Code (bash is ready quickly)
-    sleep 0.3
-    wezterm cli send-text --pane-id "$top_left" $'cc\n'
-    wezterm cli send-text --pane-id "$top_right" $'cc\n'
-
-    # Bottom: WSL takes longer to start (2s for shell prompt to be ready)
-    sleep 2
-    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
-"
-    wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        # Launch Codex (WSL takes longer)
+        sleep 2
+        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
 
-    echo "Dev layout '$tab_name' ready: 2x Claude Code (bash, top), 2x Codex (WSL, bottom)"
+        echo "Dev layout '$tab_name' ready: Claude Code (left) | Codex (right)"
+    else
+        # 4-pane layout: 2x2 grid
+        # Top row: split right for second Claude Code pane
+        local top_right
+        top_right=$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" --cwd "$dir")
+
+        # Bottom row: WSL panes for Codex (start in home to avoid /mnt path)
+        local bottom_left
+        bottom_left=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")
+        local bottom_right
+        bottom_right=$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_right" -- wsl.exe -d Ubuntu --cd "~")
+
+        # Top: launch Claude Code (bash is ready quickly)
+        sleep 0.3
+        wezterm cli send-text --pane-id "$left_pane" $'cc\n'
+        wezterm cli send-text --pane-id "$top_right" $'cc\n'
+
+        # Bottom: WSL takes longer to start (2s for shell prompt to be ready)
+        sleep 2
+        wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+"
+        wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+"
+
+        echo "Dev layout '$tab_name' ready: 2x Claude Code (top) | 2x Codex (bottom)"
+    fi
 }
 
 fi  # end WSL integration
