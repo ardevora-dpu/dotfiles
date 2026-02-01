@@ -167,6 +167,8 @@ _ensure_wsl_worktree() {
     local main_repo="${3:-}"
     local wsl_base="$WSL_PROJECTS"
     local wsl_path="$wsl_base/$win_dir"
+    local wsl_main="$wsl_base/quinlan"
+
     if [[ -z "$branch" ]]; then
         branch=$(git branch --show-current)
     fi
@@ -184,34 +186,76 @@ _ensure_wsl_worktree() {
         git -C "$main_repo" push -u origin "$branch" || { echo "Failed to push branch"; return 1; }
     fi
 
-    # Check if WSL worktree exists
-    if ! wsl -- bash -c "[ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]" 2>/dev/null; then
-        echo "Creating WSL worktree: $wsl_path (branch: $branch)"
-        if ! wsl -- bash -c "cd $wsl_base/quinlan && git fetch origin"; then
-            echo "Error: Failed to fetch in WSL. Is $wsl_base/quinlan a valid repo?"
-            return 1
-        fi
-        if ! wsl -- bash -c "cd $wsl_base/quinlan && git worktree add '$wsl_path' 'origin/$branch'"; then
-            echo "Error: Failed to create worktree. Check if branch exists and worktree isn't already registered."
-            echo "Try: wsl -- bash -c 'cd $wsl_base/quinlan && git worktree list'"
-            return 1
-        fi
-        wsl -- bash -c "cd $wsl_path && git config core.autocrlf input" 2>/dev/null || true
+    # Determine worktree state using git (more reliable than filesystem checks)
+    # States: registered (exists), stale (registered but missing), orphan (dir exists but not registered), missing
+    local wt_registered wt_dir_exists wt_state
+    wt_registered=$(wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git worktree list --porcelain 2>/dev/null | grep -q '^worktree $wsl_path\$' && echo yes || echo no")
+    wt_dir_exists=$(wsl -d Ubuntu -e bash -c "[ -d '$wsl_path' ] && echo yes || echo no")
+
+    if [[ "$wt_registered" == "yes" && "$wt_dir_exists" == "yes" ]]; then
+        wt_state="registered"
+    elif [[ "$wt_registered" == "yes" && "$wt_dir_exists" == "no" ]]; then
+        wt_state="stale"
+    elif [[ "$wt_registered" == "no" && "$wt_dir_exists" == "yes" ]]; then
+        wt_state="orphan"
+    elif [[ "$wt_registered" == "no" && "$wt_dir_exists" == "no" ]]; then
+        wt_state="missing"
     else
-        # Check if already on correct branch
-        local wsl_branch
-        wsl_branch=$(wsl -- bash -c "cd $wsl_path && git branch --show-current" 2>/dev/null)
-        if [[ "$wsl_branch" != "$branch" ]]; then
-            echo "Switching WSL worktree: $wsl_path → $branch"
-            wsl -- bash -c "cd $wsl_path && git fetch origin && git checkout $branch 2>/dev/null; git pull --ff-only 2>/dev/null || true" 2>/dev/null
-        fi
-        wsl -- bash -c "cd $wsl_path && git config core.autocrlf input" 2>/dev/null || true
-        # Already on correct branch - skip sync for speed
+        echo "Error: Could not determine WSL worktree state (registered=$wt_registered, exists=$wt_dir_exists)"
+        echo "Check WSL is running: wsl -d Ubuntu -e bash -c 'cd $wsl_main && git worktree list'"
+        return 1
     fi
 
+    case "$wt_state" in
+        registered)
+            # Worktree exists - ensure correct branch (handles detached HEAD)
+            local wsl_branch
+            wsl_branch=$(wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git branch --show-current 2>/dev/null")
+            if [[ -z "$wsl_branch" ]]; then
+                echo "Fixing detached HEAD: $wsl_path → $branch"
+                wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only 2>/dev/null || true"
+            elif [[ "$wsl_branch" != "$branch" ]]; then
+                echo "Switching WSL worktree: $wsl_path → $branch"
+                wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only 2>/dev/null || true"
+            fi
+            ;;
+        stale)
+            echo "Pruning stale worktree: $wsl_path"
+            wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git worktree prune"
+            _create_wsl_worktree "$wsl_path" "$branch" "$wsl_main" || return 1
+            ;;
+        orphan)
+            echo "Removing orphan directory: $wsl_path"
+            wsl -d Ubuntu -e bash -c "rm -rf '$wsl_path'"
+            _create_wsl_worktree "$wsl_path" "$branch" "$wsl_main" || return 1
+            ;;
+        missing)
+            _create_wsl_worktree "$wsl_path" "$branch" "$wsl_main" || return 1
+            ;;
+    esac
+
+    # Ensure correct git config
+    wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git config core.autocrlf input" 2>/dev/null || true
+
     # Generate AGENTS.md for Codex (concatenate main + local context)
-    # Avoid clobbering CLAUDE.md if AGENTS.md is a symlink.
-    wsl -- bash -c "if [ -L '$wsl_path/AGENTS.md' ]; then rm -f '$wsl_path/AGENTS.md'; fi; cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/.AGENTS.md.tmp' && mv '$wsl_path/.AGENTS.md.tmp' '$wsl_path/AGENTS.md'" 2>/dev/null || true
+    wsl -d Ubuntu -e bash -c "
+        [ -L '$wsl_path/AGENTS.md' ] && rm -f '$wsl_path/AGENTS.md'
+        cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/.AGENTS.md.tmp' 2>/dev/null && mv '$wsl_path/.AGENTS.md.tmp' '$wsl_path/AGENTS.md'
+    " 2>/dev/null || true
+}
+
+_create_wsl_worktree() {
+    local wsl_path="$1" branch="$2" wsl_main="$3"
+    echo "Creating WSL worktree: $wsl_path (branch: $branch)"
+    if ! wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git fetch origin"; then
+        echo "Error: Failed to fetch in WSL. Is $wsl_main a valid repo?"
+        return 1
+    fi
+    if ! wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git worktree add '$wsl_path' 'origin/$branch'"; then
+        echo "Error: Failed to create worktree."
+        echo "Debug: wsl -d Ubuntu -e bash -c \"cd '$wsl_main' && git worktree list\""
+        return 1
+    fi
 }
 
 # Codex in WSL - maps Windows worktree to WSL equivalent, creates if needed
