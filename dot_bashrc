@@ -112,6 +112,10 @@ alias cc='claude --dangerously-skip-permissions'
 
 if command -v wsl.exe &>/dev/null; then
 
+# Detect WSL username once (works across machines)
+WSL_USER=$(wsl.exe -d Ubuntu -e whoami 2>/dev/null | tr -d '\r')
+WSL_PROJECTS="/home/${WSL_USER}/projects"
+
 # Helper: ensure Windows worktree exists for a branch
 _ensure_win_worktree() {
     local branch="$1"
@@ -161,7 +165,7 @@ _ensure_wsl_worktree() {
     local win_dir="$1"
     local branch="${2:-}"
     local main_repo="${3:-}"
-    local wsl_base="/home/chimern/projects"
+    local wsl_base="$WSL_PROJECTS"
     local wsl_path="$wsl_base/$win_dir"
     if [[ -z "$branch" ]]; then
         branch=$(git branch --show-current)
@@ -215,7 +219,7 @@ _ensure_wsl_worktree() {
 c() {
     local win_dir
     win_dir=$(basename "$PWD")
-    local wsl_path="/home/chimern/projects/$win_dir"
+    local wsl_path="$WSL_PROJECTS/$win_dir"
 
     # Check if we're in a quinlan worktree
     if [[ ! "$win_dir" == quinlan* ]]; then
@@ -236,7 +240,7 @@ c() {
 cpane() {
     local win_dir
     win_dir=$(basename "$PWD")
-    local wsl_path="/home/chimern/projects/$win_dir"
+    local wsl_path="$WSL_PROJECTS/$win_dir"
 
     # Check if we're in a quinlan worktree
     if [[ ! "$win_dir" == quinlan* ]]; then
@@ -274,7 +278,7 @@ wip() {
 sync() {
     local win_dir
     win_dir=$(basename "$PWD")
-    local wsl_path="/home/chimern/projects/$win_dir"
+    local wsl_path="$WSL_PROJECTS/$win_dir"
     wsl -d Ubuntu -- bash -c "cd $wsl_path && git pull windows $(git branch --show-current) --ff-only"
     echo "WSL synced with Windows"
 }
@@ -327,7 +331,7 @@ dev() {
         win_dir="quinlan-$suffix"
         dir="$(_ensure_win_worktree "$branch")" || return 1
         dir="$(cd "$dir" && pwd)" || return 1
-        wsl_path="/home/chimern/projects/$win_dir"
+        wsl_path="$WSL_PROJECTS/$win_dir"
         _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
     else
         if [[ ! -d "$dir" ]]; then
@@ -344,7 +348,7 @@ dev() {
             echo "Error: Not in a quinlan worktree (current: $win_dir)"
             return 1
         fi
-        wsl_path="/home/chimern/projects/$win_dir"
+        wsl_path="$WSL_PROJECTS/$win_dir"
         git -C "$dir" config core.autocrlf input
         branch=$(git -C "$dir" branch --show-current 2>/dev/null)
         if [[ -z "$branch" ]]; then

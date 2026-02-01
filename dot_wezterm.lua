@@ -74,6 +74,79 @@ wezterm.on('update-status', function(window, pane)
   }))
 end)
 
+-- =============================================================================
+-- Coloured tabs by project/worktree
+-- =============================================================================
+-- Gruvbox-inspired palette for tab colours
+local tab_colours = {
+  '#cc241d',  -- red
+  '#d65d0e',  -- orange
+  '#d79921',  -- yellow
+  '#98971a',  -- green
+  '#689d6a',  -- aqua
+  '#458588',  -- blue
+  '#b16286',  -- purple
+  '#a89984',  -- grey
+}
+
+-- Simple hash function to get consistent colour from string
+local function hash_to_colour(str)
+  local hash = 0
+  for i = 1, #str do
+    hash = (hash * 31 + string.byte(str, i)) % 256
+  end
+  return tab_colours[(hash % #tab_colours) + 1]
+end
+
+-- Format tab title with project-based colours
+wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_width)
+  local pane = tab.active_pane
+  local cwd = pane.current_working_dir
+
+  -- Extract directory name from cwd
+  local dir_name = 'shell'
+  if cwd then
+    local path = cwd.file_path or tostring(cwd)
+    path = path:gsub('\\', '/'):gsub('/$', '')
+    dir_name = path:match('([^/]+)$') or 'shell'
+  end
+
+  -- For quinlan worktrees, show just the suffix (e.g., "weekly-recap")
+  local display_name = dir_name
+  local colour_key = dir_name
+  if dir_name:match('^quinlan%-') then
+    display_name = dir_name:gsub('^quinlan%-', '')
+    colour_key = display_name  -- Colour by the suffix
+  elseif dir_name == 'quinlan' then
+    display_name = 'main'
+    colour_key = 'main'
+  end
+
+  -- Truncate if needed
+  if #display_name > max_width - 4 then
+    display_name = display_name:sub(1, max_width - 5) .. '…'
+  end
+
+  local bg_colour = hash_to_colour(colour_key)
+  local fg_colour = '#ebdbb2'  -- Gruvbox light foreground
+
+  -- Dim inactive tabs
+  if not tab.is_active then
+    fg_colour = '#928374'  -- Gruvbox grey
+    bg_colour = '#3c3836'  -- Gruvbox dark background
+  end
+
+  -- Add tab index for quick navigation
+  local index = tab.tab_index + 1
+  local title = string.format(' %d:%s ', index, display_name)
+
+  return {
+    { Background = { Color = bg_colour } },
+    { Foreground = { Color = fg_colour } },
+    { Text = title },
+  }
+end)
+
 -- Disable blinking (removes constant redraw loop, improves streaming smoothness)
 config.cursor_blink_rate = 0
 config.text_blink_rate = 0
@@ -165,10 +238,20 @@ config.keys = {
     end),
   },
   -- Smart Ctrl+V: if clipboard has image, save to temp and paste path; otherwise normal paste
+  -- Requires clip2png.exe (auto-compiled by run_once_compile-helpers.ps1)
   {
     key = 'v',
     mods = 'CTRL',
     action = wezterm.action_callback(function(window, pane)
+      -- Check if helper exists before trying to run it
+      local f = io.open(clip2png, 'r')
+      if not f then
+        -- Helper not installed, fall back to normal paste
+        window:perform_action(act.PasteFrom('Clipboard'), pane)
+        return
+      end
+      f:close()
+
       local temp = os.getenv("TEMP"):gsub("\\", "/")
       local timestamp = os.date("%Y%m%d_%H%M%S")
       local outpath = temp .. '/clip_' .. timestamp .. '.png'
@@ -181,7 +264,7 @@ config.keys = {
         -- Image saved, paste the path
         pane:send_text(outpath)
       else
-        -- No image or helper missing, normal paste
+        -- No image in clipboard, normal paste
         window:perform_action(act.PasteFrom('Clipboard'), pane)
       end
     end),
