@@ -241,6 +241,7 @@ _ensure_wsl_worktree() {
     wsl -d Ubuntu -e bash -c "
         [ -L '$wsl_path/AGENTS.md' ] && rm -f '$wsl_path/AGENTS.md'
         cat '$wsl_path/CLAUDE.md' '$wsl_path/workspaces/timon/CLAUDE.local.template.md' > '$wsl_path/.AGENTS.md.tmp' 2>/dev/null && mv '$wsl_path/.AGENTS.md.tmp' '$wsl_path/AGENTS.md'
+        [ -f '$wsl_path/AGENTS.md' ] && git -C '$wsl_path' update-index --assume-unchanged AGENTS.md 2>/dev/null || true
     " 2>/dev/null || true
 }
 
