@@ -135,124 +135,6 @@ if command -v wsl.exe &>/dev/null; then
 WSL_USER=$(wsl.exe -d Ubuntu -e whoami 2>/dev/null | tr -d '\r')
 WSL_PROJECTS="/home/${WSL_USER}/projects"
 
-# ---------------------------------------------------------------------------
-# Multi-project configuration
-# ---------------------------------------------------------------------------
-# Each project has: win_root, repo_name, main_branch, mode (worktree|clone)
-# - worktree: Uses git worktrees for parallel development (quinlan)
-# - clone: Simple clone in WSL, syncs branches via git (finances, other repos)
-
-# Detect project type from current directory
-# Returns: "quinlan|worktree" or "finances|clone" or empty if unknown
-_detect_project() {
-    local dir="${1:-$PWD}"
-    local repo_root repo_name
-
-    repo_root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 1
-    repo_name=$(basename "$repo_root")
-
-    # Check quinlan (including worktrees like quinlan-feature)
-    if [[ "$repo_name" == quinlan* ]]; then
-        echo "quinlan|worktree|/e/projects/main_workspace|main"
-        return 0
-    fi
-
-    # Check finances
-    if [[ "$repo_name" == "finances" ]] || [[ "$repo_root" == */finances ]]; then
-        echo "finances|clone|/e/projects|master"
-        return 0
-    fi
-
-    return 1
-}
-
-# ---------------------------------------------------------------------------
-# Clone-mode helpers (for simple repos like finances)
-# ---------------------------------------------------------------------------
-
-# Ensure WSL clone exists for a clone-mode project
-_ensure_wsl_clone() {
-    local repo_name="$1"
-    local win_path="$2"
-    local wsl_path="$WSL_PROJECTS/$repo_name"
-
-    # Check if clone exists
-    local clone_exists
-    clone_exists=$(wsl -d Ubuntu -e bash -c "[ -d '$wsl_path/.git' ] && echo yes || echo no")
-
-    if [[ "$clone_exists" == "no" ]]; then
-        echo "Cloning $repo_name to WSL: $wsl_path"
-        # Get the remote URL from Windows
-        local remote_url
-        remote_url=$(git -C "$win_path" remote get-url origin)
-
-        # Clone in WSL
-        wsl -d Ubuntu -e bash -c "mkdir -p '$WSL_PROJECTS' && git clone '$remote_url' '$wsl_path'" || {
-            echo "Error: Failed to clone to WSL"
-            return 1
-        }
-    fi
-
-    # Add Windows as a remote for syncing (uses /mnt path)
-    local win_mnt_path
-    win_mnt_path=$(echo "$win_path" | sed 's|^/\([a-z]\)/|/mnt/\1/|')
-    wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git remote get-url windows &>/dev/null || git remote add windows 'file://$win_mnt_path'" 2>/dev/null || true
-
-    # Ensure correct git config
-    wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git config core.autocrlf input" 2>/dev/null || true
-}
-
-# Sync WSL clone to Windows branch
-_sync_wsl_clone() {
-    local repo_name="$1"
-    local win_path="$2"
-    local branch="$3"
-    local wsl_path="$WSL_PROJECTS/$repo_name"
-
-    # Push branch to origin if not there (so WSL can access it)
-    if ! git -C "$win_path" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
-        echo "Pushing $branch to origin for WSL sync..."
-        git -C "$win_path" push -u origin "$branch" || {
-            echo "Warning: Could not push to origin. Will sync via Windows remote."
-        }
-    fi
-
-    # Fetch from Windows remote and origin
-    wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git fetch windows && git fetch origin" 2>/dev/null || true
-
-    # Checkout branch
-    local wsl_branch
-    wsl_branch=$(wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git branch --show-current 2>/dev/null")
-
-    if [[ "$wsl_branch" != "$branch" ]]; then
-        echo "Switching WSL to branch: $branch"
-        # Try to checkout, create from origin or windows if needed
-        wsl -d Ubuntu -e bash -c "
-            cd '$wsl_path'
-            git checkout '$branch' 2>/dev/null || \
-            git checkout -b '$branch' 'origin/$branch' 2>/dev/null || \
-            git checkout -b '$branch' 'windows/$branch' 2>/dev/null || \
-            git checkout -b '$branch'
-        " || {
-            echo "Error: Could not checkout branch $branch in WSL"
-            return 1
-        }
-    fi
-
-    # Pull latest
-    wsl -d Ubuntu -e bash -c "cd '$wsl_path' && git pull --ff-only 2>/dev/null || true"
-
-    # Generate AGENTS.md for Codex if CLAUDE.md exists
-    wsl -d Ubuntu -e bash -c "
-        [ -f '$wsl_path/CLAUDE.md' ] && cp '$wsl_path/CLAUDE.md' '$wsl_path/AGENTS.md' 2>/dev/null
-        [ -f '$wsl_path/AGENTS.md' ] && git -C '$wsl_path' update-index --assume-unchanged AGENTS.md 2>/dev/null || true
-    " 2>/dev/null || true
-}
-
-# ---------------------------------------------------------------------------
-# Worktree-mode helpers (for quinlan)
-# ---------------------------------------------------------------------------
-
 # Helper: ensure Windows worktree exists for a branch
 _ensure_win_worktree() {
     local branch="$1"
@@ -396,45 +278,21 @@ _create_wsl_worktree() {
     fi
 }
 
-# Codex in WSL - maps Windows directory to WSL equivalent, creates if needed
+# Codex in WSL - maps Windows worktree to WSL equivalent, creates if needed
 # Usage: c [prompt]
-# Works with: quinlan (worktree mode), finances (clone mode)
 c() {
-    local wsl_path
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="$WSL_PROJECTS/$win_dir"
 
-    # Detect project type
-    local project_info
-    project_info=$(_detect_project)
-    if [[ -z "$project_info" ]]; then
-        echo "Error: Unknown project. Supported: quinlan, finances"
+    # Check if we're in a quinlan worktree
+    if [[ ! "$win_dir" == quinlan* ]]; then
+        echo "Error: Not in a quinlan worktree (current: $win_dir)"
         return 1
     fi
 
-    local project_name project_mode project_root main_branch
-    IFS='|' read -r project_name project_mode project_root main_branch <<< "$project_info"
-
-    local branch
-    branch=$(git branch --show-current 2>/dev/null)
-    if [[ -z "$branch" ]]; then
-        echo "Error: Unable to determine branch"
-        return 1
-    fi
-
-    if [[ "$project_mode" == "worktree" ]]; then
-        # Quinlan: worktree mode
-        local win_dir
-        win_dir=$(basename "$PWD")
-        wsl_path="$WSL_PROJECTS/$win_dir"
-        _ensure_wsl_worktree "$win_dir"
-    else
-        # Clone mode (finances, etc)
-        local repo_name win_repo_path
-        repo_name=$(basename "$(git rev-parse --show-toplevel)")
-        win_repo_path=$(git rev-parse --show-toplevel)
-        wsl_path="$WSL_PROJECTS/$repo_name"
-        _ensure_wsl_clone "$repo_name" "$win_repo_path" || return 1
-        _sync_wsl_clone "$repo_name" "$win_repo_path" "$branch" || return 1
-    fi
+    # Ensure WSL worktree exists and is synced
+    _ensure_wsl_worktree "$win_dir"
 
     # Run Codex in WSL (blocking)
     echo "Starting Codex in WSL: $wsl_path"
@@ -443,43 +301,19 @@ c() {
 
 # Codex in WSL pane (non-blocking, opens new wezterm pane)
 # Usage: cpane
-# Works with: quinlan (worktree mode), finances (clone mode)
 cpane() {
-    local wsl_path
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="$WSL_PROJECTS/$win_dir"
 
-    # Detect project type
-    local project_info
-    project_info=$(_detect_project)
-    if [[ -z "$project_info" ]]; then
-        echo "Error: Unknown project. Supported: quinlan, finances"
+    # Check if we're in a quinlan worktree
+    if [[ ! "$win_dir" == quinlan* ]]; then
+        echo "Error: Not in a quinlan worktree (current: $win_dir)"
         return 1
     fi
 
-    local project_name project_mode project_root main_branch
-    IFS='|' read -r project_name project_mode project_root main_branch <<< "$project_info"
-
-    local branch
-    branch=$(git branch --show-current 2>/dev/null)
-    if [[ -z "$branch" ]]; then
-        echo "Error: Unable to determine branch"
-        return 1
-    fi
-
-    if [[ "$project_mode" == "worktree" ]]; then
-        # Quinlan: worktree mode
-        local win_dir
-        win_dir=$(basename "$PWD")
-        wsl_path="$WSL_PROJECTS/$win_dir"
-        _ensure_wsl_worktree "$win_dir"
-    else
-        # Clone mode (finances, etc)
-        local repo_name win_repo_path
-        repo_name=$(basename "$(git rev-parse --show-toplevel)")
-        win_repo_path=$(git rev-parse --show-toplevel)
-        wsl_path="$WSL_PROJECTS/$repo_name"
-        _ensure_wsl_clone "$repo_name" "$win_repo_path" || return 1
-        _sync_wsl_clone "$repo_name" "$win_repo_path" "$branch" || return 1
-    fi
+    # Ensure WSL worktree exists
+    _ensure_wsl_worktree "$win_dir"
 
     # Open WSL pane and launch Codex (start in home to avoid /mnt path)
     local pane
@@ -505,35 +339,12 @@ wip() {
 }
 
 # Pull changes from Windows (run in WSL, or from Windows via this wrapper)
-# Works with: quinlan (worktree mode), finances (clone mode)
 sync() {
-    local wsl_path
-
-    # Detect project type
-    local project_info
-    project_info=$(_detect_project)
-    if [[ -z "$project_info" ]]; then
-        echo "Error: Unknown project. Supported: quinlan, finances"
-        return 1
-    fi
-
-    local project_name project_mode
-    IFS='|' read -r project_name project_mode _ _ <<< "$project_info"
-
-    if [[ "$project_mode" == "worktree" ]]; then
-        local win_dir
-        win_dir=$(basename "$PWD")
-        wsl_path="$WSL_PROJECTS/$win_dir"
-    else
-        local repo_name
-        repo_name=$(basename "$(git rev-parse --show-toplevel)")
-        wsl_path="$WSL_PROJECTS/$repo_name"
-    fi
-
-    local branch
-    branch=$(git branch --show-current)
-    wsl -d Ubuntu -- bash -c "cd $wsl_path && git fetch windows && git pull --ff-only windows $branch 2>/dev/null || git merge --ff-only windows/$branch"
-    echo "WSL synced with Windows ($wsl_path)"
+    local win_dir
+    win_dir=$(basename "$PWD")
+    local wsl_path="$WSL_PROJECTS/$win_dir"
+    wsl -d Ubuntu -- bash -c "cd $wsl_path && git pull windows $(git branch --show-current) --ff-only"
+    echo "WSL synced with Windows"
 }
 
 # Undo WIP commit, keep changes staged (run on Windows after review)
@@ -551,7 +362,6 @@ unwip() {
 
 # Dev layout: 2x2 panes with Claude Code (top, bash) and Codex (bottom, WSL)
 # Usage: dev [2] [directory|branch]
-# Works with: quinlan (worktree mode), finances (clone mode)
 dev() {
     local panes=4
     local arg="${1:-}"
@@ -568,8 +378,9 @@ dev() {
     local win_dir=""
     local wsl_path=""
     local tab_name=""
+    local workspace="${WORKSPACE_ROOT:-/e/projects/main_workspace}"
+    local main_repo="$workspace/quinlan"
 
-    # Determine target directory
     if [[ -z "$arg" ]]; then
         dir="$(pwd)"
     elif [[ -d "$arg" ]] || [[ "$arg" == /* ]] || [[ "$arg" == ./* ]] || [[ "$arg" == ../* ]]; then
@@ -580,82 +391,51 @@ dev() {
         echo "Error: '$arg' doesn't look like a path or branch."
         echo ""
         echo "Usage:"
-        echo "  dev                     # Open 4-pane layout in current directory"
+        echo "  dev                     # Open 4-pane layout in current worktree"
         echo "  dev 2                   # Open 2-pane layout (1 Claude, 1 Codex)"
-        echo "  dev feat/my-feature     # Create/open worktree for branch (quinlan only)"
+        echo "  dev feat/my-feature     # Create/open worktree for branch"
         echo "  dev 2 feat/my-feature   # 2-pane layout for branch"
-        echo "  dev /path/to/project    # Open layout for existing path"
+        echo "  dev /path/to/worktree   # Open layout for existing path"
         echo ""
-        echo "Supported projects: quinlan (worktree), finances (clone)"
+        echo "Branch prefixes: feat/ fix/ chore/ docs/ hotfix/ experiment/"
         return 1
     fi
 
-    # If branch specified without dir, assume quinlan (the only worktree-mode project)
     if [[ -n "$branch" ]]; then
-        local workspace="${WORKSPACE_ROOT:-/e/projects/main_workspace}"
-        local main_repo="$workspace/quinlan"
         local suffix="${branch##*/}"
         win_dir="quinlan-$suffix"
         dir="$(_ensure_win_worktree "$branch")" || return 1
         dir="$(cd "$dir" && pwd)" || return 1
         wsl_path="$WSL_PROJECTS/$win_dir"
         _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
-        tab_name="$win_dir"
     else
-        # Working with existing directory - detect project type
         if [[ ! -d "$dir" ]]; then
             echo "Error: Directory not found: $dir"
             return 1
         fi
         dir="$(cd "$dir" && pwd)"
-
         if ! git -C "$dir" rev-parse --is-inside-work-tree &>/dev/null; then
-            echo "Error: Not a git repository: $dir"
+            echo "Error: Not a git worktree: $dir"
             return 1
         fi
-
-        # Detect project type
-        local project_info
-        project_info=$(_detect_project "$dir")
-        if [[ -z "$project_info" ]]; then
-            echo "Error: Unknown project. Supported: quinlan, finances"
-            echo "Current directory: $dir"
+        win_dir=$(basename "$dir")
+        if [[ ! "$win_dir" == quinlan* ]]; then
+            echo "Error: Not in a quinlan worktree (current: $win_dir)"
             return 1
         fi
-
-        local project_name project_mode project_root main_branch
-        IFS='|' read -r project_name project_mode project_root main_branch <<< "$project_info"
-
+        wsl_path="$WSL_PROJECTS/$win_dir"
+        git -C "$dir" config core.autocrlf input
         branch=$(git -C "$dir" branch --show-current 2>/dev/null)
         if [[ -z "$branch" ]]; then
-            echo "Error: Unable to determine branch (detached HEAD?)"
+            echo "Error: Unable to determine branch for $dir"
             return 1
         fi
-
-        git -C "$dir" config core.autocrlf input
-
-        if [[ "$project_mode" == "worktree" ]]; then
-            # Quinlan: worktree mode
-            win_dir=$(basename "$dir")
-            wsl_path="$WSL_PROJECTS/$win_dir"
-            local main_repo
-            main_repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
-            _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
-            tab_name="$win_dir"
-        else
-            # Clone mode (finances, etc)
-            local repo_name
-            repo_name=$(basename "$(git -C "$dir" rev-parse --show-toplevel)")
-            local win_repo_path
-            win_repo_path=$(git -C "$dir" rev-parse --show-toplevel)
-            wsl_path="$WSL_PROJECTS/$repo_name"
-            _ensure_wsl_clone "$repo_name" "$win_repo_path" || return 1
-            _sync_wsl_clone "$repo_name" "$win_repo_path" "$branch" || return 1
-            tab_name="$repo_name"
-        fi
+        main_repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
+        _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
     fi
 
     cd "$dir" || return 1
+    tab_name="$win_dir"
 
     # Use current pane as left/top-left
     local left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
