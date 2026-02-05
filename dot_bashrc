@@ -515,3 +515,8 @@ p() {
 # shell script works natively in Git Bash. A previous az() wrapper that called
 # az.cmd broke path resolution due to spaces in "Program Files".
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Local extensions (personal overrides, not managed by chezmoi)
+# ---------------------------------------------------------------------------
+[[ -f ~/.bashrc.local ]] && source ~/.bashrc.local
