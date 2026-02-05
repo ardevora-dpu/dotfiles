@@ -511,6 +511,7 @@ p() {
 }
 
 # ---------------------------------------------------------------------------
-# Azure CLI fix for Git Bash (MINGW stdout issue)
+# Azure CLI: No wrapper needed — Microsoft's /c/Program Files/.../wbin/az
+# shell script works natively in Git Bash. A previous az() wrapper that called
+# az.cmd broke path resolution due to spaces in "Program Files".
 # ---------------------------------------------------------------------------
-az() { az.cmd "$@"; }
