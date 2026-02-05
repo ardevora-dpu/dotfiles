@@ -111,21 +111,18 @@ cc() {
     local dir
     dir=$(basename "$PWD")
 
-    # Use worktree name as task list ID for quinlan projects
+    # Determine task list ID based on project context
     if [[ "$dir" == quinlan* ]]; then
         task_id="$dir"
-    else
-        # For other projects, use the directory name if it's a git repo
-        if git rev-parse --is-inside-work-tree &>/dev/null; then
-            task_id=$(basename "$(git rev-parse --show-toplevel)")
-        fi
+    elif git rev-parse --is-inside-work-tree &>/dev/null; then
+        task_id=$(basename "$(git rev-parse --show-toplevel)")
     fi
 
-    if [[ -n "$task_id" ]]; then
-        CLAUDE_CODE_TASK_LIST_ID="$task_id" claude --dangerously-skip-permissions "$@"
-    else
+    # Run in subshell to avoid leaking env var; single claude invocation (DRY)
+    (
+        [[ -n "$task_id" ]] && export CLAUDE_CODE_TASK_LIST_ID="$task_id"
         claude --dangerously-skip-permissions "$@"
-    fi
+    )
 }
 
 # ---------------------------------------------------------------------------
