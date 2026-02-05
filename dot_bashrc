@@ -104,7 +104,29 @@ PROMPT_COMMAND="_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 # ---------------------------------------------------------------------------
 
 # Claude Code (Windows native, Git Bash) - works for everyone
-alias cc='claude --dangerously-skip-permissions'
+# Sets CLAUDE_CODE_TASK_LIST_ID based on worktree name so all Claude instances
+# in the same worktree share a task list.
+cc() {
+    local task_id=""
+    local dir
+    dir=$(basename "$PWD")
+
+    # Use worktree name as task list ID for quinlan projects
+    if [[ "$dir" == quinlan* ]]; then
+        task_id="$dir"
+    else
+        # For other projects, use the directory name if it's a git repo
+        if git rev-parse --is-inside-work-tree &>/dev/null; then
+            task_id=$(basename "$(git rev-parse --show-toplevel)")
+        fi
+    fi
+
+    if [[ -n "$task_id" ]]; then
+        CLAUDE_CODE_TASK_LIST_ID="$task_id" claude --dangerously-skip-permissions "$@"
+    else
+        claude --dangerously-skip-permissions "$@"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # WSL integration (Timon's Codex workflow - only loads if WSL available)
