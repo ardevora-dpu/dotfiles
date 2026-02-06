@@ -518,5 +518,6 @@ p() {
 
 # ---------------------------------------------------------------------------
 # Local extensions (personal overrides, not managed by chezmoi)
+# shellcheck source=/dev/null
 # ---------------------------------------------------------------------------
 [[ -f ~/.bashrc.local ]] && source ~/.bashrc.local
