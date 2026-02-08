@@ -267,8 +267,10 @@ _ensure_wsl_worktree() {
 _create_wsl_worktree() {
     local wsl_path="$1" branch="$2" wsl_main="$3"
     echo "Creating WSL worktree: $wsl_path (branch: $branch)"
-    if ! wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git fetch origin"; then
-        echo "Error: Failed to fetch in WSL. Is $wsl_main a valid repo?"
+    # Fetch the specific branch with an explicit refspec so it works even if
+    # the WSL clone has a narrow remote.origin.fetch (e.g. single-branch clone)
+    if ! wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git fetch origin '+refs/heads/$branch:refs/remotes/origin/$branch'"; then
+        echo "Error: Failed to fetch branch '$branch' in WSL. Is $wsl_main a valid repo?"
         return 1
     fi
     if ! wsl -d Ubuntu -e bash -c "cd '$wsl_main' && git worktree add '$wsl_path' 'origin/$branch'"; then
