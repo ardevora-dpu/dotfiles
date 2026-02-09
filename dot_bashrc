@@ -464,6 +464,9 @@ dev() {
     fi
 }
 
+# Personal overrides (not managed by chezmoi)
+[ -f "$HOME/.bashrc.local" ] && source "$HOME/.bashrc.local"
+
 fi  # end WSL integration
 
 # ---------------------------------------------------------------------------
