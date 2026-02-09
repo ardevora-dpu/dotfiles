@@ -9,7 +9,7 @@ Shared shell and terminal configuration, managed by [chezmoi](https://chezmoi.io
 | `dot_wezterm.lua` | `~/.wezterm.lua` | WezTerm terminal config (GPU, 240fps, Git Bash) |
 | `dot_bashrc` | `~/.bashrc` | Shell aliases, PATH, auto-env loading |
 | `dot_bash_profile` | `~/.bash_profile` | Login shell setup |
-| `dot_claude/skills/*` | `~/.claude/skills/*` | Timon-only user-level Claude/Codex skills |
+| `dot_claude/skills/*` | `~/.claude/skills/*` | Timon-only user-level Claude/Codex skills (gated by username) |
 | `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper (source) |
 
 ## Quick Start
@@ -25,6 +25,10 @@ This copies dotfiles to your home directory, overwriting any existing versions.
 **Note:** `/update` creates `~/.config/chezmoi/chezmoi.toml` once per machine, pointing to the repo's dotfiles. After first-time setup, `chezmoi apply` works from any worktree.
 
 For ARD-244 skill scoping, run `chezmoi apply` on both Timon's Windows profile and WSL profile so `~/.claude/skills/` is in sync in both environments.
+
+User/OS gating is handled in `.chezmoiignore.tmpl`:
+- Timon-only skill payload under `dot_claude/skills/` is skipped for non-`chimern` users.
+- `run_once_compile-helpers.ps1` is skipped on non-Windows hosts.
 
 ## Compile clip2png (One-Time)
 
