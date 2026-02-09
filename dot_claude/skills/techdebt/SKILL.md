@@ -32,6 +32,7 @@ This skill runs an evidence-first audit of monorepo sprawl and produces a priori
    rg -n "mise.toml|env.sh|machine.dsc.yaml" -S .
    git submodule status
    ```
+   If a ripgrep pattern needs newline matching, use multiline mode (`rg -U` or `--multiline`). Avoid `\n` patterns without `-U`, which fail with "literal \\n is not allowed in a regex".
 
 3. Split investigation by area.
    If subagents are available, delegate four tracks: dependency sprawl and duplication; reproducibility and environment drift; dead code and unused assets; naming conventions and package boundaries.
