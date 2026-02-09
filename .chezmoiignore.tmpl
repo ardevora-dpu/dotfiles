@@ -5,7 +5,8 @@ compile-helpers.ps1
 {{- end }}
 
 {{- /* Timon-only user-level skills: do not deploy for other users (e.g. Jeremy) */ -}}
-{{- if ne .chezmoi.username "chimern" }}
+{{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
+{{- if not $isTimon }}
 dot_claude/skills/email-style/**
 dot_claude/skills/mcp-config-locations/**
 dot_claude/skills/merge/**
