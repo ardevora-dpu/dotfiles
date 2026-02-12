@@ -4,14 +4,14 @@
 export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
 
 _QUINLAN_MODULE_ROOT="$HOME/.config/quinlan-shell/modules"
-_QUINLAN_USER_FILE="$HOME/.quinlan-user"
 
-_quinlan_source_module() {
+_quinlan_source_required_module() {
     local module_name="$1"
     local module_path="${_QUINLAN_MODULE_ROOT}/${module_name}"
 
     if [[ ! -f "$module_path" ]]; then
-        echo "[quinlan-shell] Missing module: $module_path" >&2
+        echo "[quinlan-shell] Missing required module: $module_path" >&2
+        echo "[quinlan-shell] Run: chezmoi apply --force" >&2
         return 1
     fi
 
@@ -19,41 +19,32 @@ _quinlan_source_module() {
     source "$module_path"
 }
 
+_quinlan_source_optional_module() {
+    local module_name="$1"
+    local module_path="${_QUINLAN_MODULE_ROOT}/${module_name}"
+
+    if [[ -f "$module_path" ]]; then
+        # shellcheck source=/dev/null
+        source "$module_path"
+    fi
+}
+
 if [[ ! -d "$_QUINLAN_MODULE_ROOT" ]]; then
     echo "[quinlan-shell] Missing module directory: $_QUINLAN_MODULE_ROOT" >&2
     echo "[quinlan-shell] Run: chezmoi apply --force" >&2
 else
-    _quinlan_source_module "path.sh"
-    _quinlan_source_module "auto-env.sh"
-    _quinlan_source_module "claude.sh"
-    _quinlan_source_module "azure.sh"
+    _quinlan_source_required_module "path.sh"
+    _quinlan_source_required_module "auto-env.sh"
+    _quinlan_source_required_module "claude.sh"
+    _quinlan_source_required_module "azure.sh"
+    _quinlan_source_required_module "project.sh"
+
+    # Timon-only modules are present only when deployed by chezmoi gating.
+    _quinlan_source_optional_module "claude-timon.sh"
+    _quinlan_source_optional_module "codex-wsl.sh"
+    _quinlan_source_optional_module "local.sh"
 fi
 
-if [[ ! -f "$_QUINLAN_USER_FILE" ]]; then
-    echo "[quinlan-shell] Missing role file: $_QUINLAN_USER_FILE" >&2
-    echo "[quinlan-shell] Set it to 'timon' or 'jeremy' (usually done by /update)." >&2
-else
-    QUINLAN_USER="$(tr -d '[:space:]' < "$_QUINLAN_USER_FILE" | tr '[:upper:]' '[:lower:]')"
-    export QUINLAN_USER
-
-    case "$QUINLAN_USER" in
-        timon)
-            _quinlan_source_module "codex-wsl.sh"
-            ;;
-        jeremy)
-            # Jeremy only needs the shared base modules and cc alias.
-            ;;
-        *)
-            echo "[quinlan-shell] Invalid role '${QUINLAN_USER}' in $_QUINLAN_USER_FILE" >&2
-            echo "[quinlan-shell] Expected 'timon' or 'jeremy'." >&2
-            ;;
-    esac
-fi
-
-if [[ -d "$_QUINLAN_MODULE_ROOT" ]]; then
-    _quinlan_source_module "local.sh"
-fi
-
-unset -f _quinlan_source_module
+unset -f _quinlan_source_required_module
+unset -f _quinlan_source_optional_module
 unset _QUINLAN_MODULE_ROOT
-unset _QUINLAN_USER_FILE

@@ -8,6 +8,11 @@ _quinlan_require_command() {
     fi
 }
 
+_quinlan_wsl_bash() {
+    local script="$1"
+    wsl -d Ubuntu -e bash -lc "$script"
+}
+
 _quinlan_wsl_user() {
     if [[ -n "${_QUINLAN_WSL_USER:-}" ]]; then
         printf '%s' "$_QUINLAN_WSL_USER"
@@ -87,36 +92,71 @@ _ensure_codex_snowflake_timeout() {
     ' "$config" > "$tmp" && mv "$tmp" "$config"
 }
 
-_quinlan_require_wsl_worktree() {
+_quinlan_create_wsl_worktree() {
     local wsl_path="$1"
-    local expected_branch="$2"
-    local wsl_branch
+    local branch="$2"
+    local wsl_main="$3"
+
+    echo "[codex-wsl] Creating WSL worktree: $wsl_path (branch: $branch)"
+
+    _quinlan_wsl_bash "[ -d '$wsl_path' ] && rm -rf '$wsl_path' || true"
+    _quinlan_wsl_bash "cd '$wsl_main' && git worktree prune && git fetch origin && git worktree add '$wsl_path' 'origin/$branch'"
+}
+
+_quinlan_ensure_wsl_worktree() {
+    local wsl_path="$1"
+    local branch="$2"
+    local main_repo="$3"
+    local wsl_user wsl_main wsl_branch
 
     _quinlan_require_command wsl || return 1
+    _quinlan_require_command git || return 1
 
-    if ! wsl -d Ubuntu -e bash -lc "[ -d '$wsl_path/.git' ]"; then
-        echo "[codex-wsl] Missing WSL worktree at: $wsl_path" >&2
-        echo "[codex-wsl] Create it with:" >&2
-        echo "  wsl -d Ubuntu -e bash -lc \"cd ~/projects/quinlan && git worktree add '$wsl_path' '$expected_branch'\"" >&2
+    if [[ -z "$branch" ]]; then
+        echo "[codex-wsl] Missing branch for WSL worktree sync." >&2
         return 1
     fi
 
-    wsl_branch="$(wsl -d Ubuntu -e bash -lc "cd '$wsl_path' && git branch --show-current" | tr -d '\r[:space:]')"
-    if [[ "$wsl_branch" != "$expected_branch" ]]; then
-        echo "[codex-wsl] Branch mismatch for $wsl_path (expected '$expected_branch', got '${wsl_branch:-detached}')." >&2
-        echo "[codex-wsl] Align it with:" >&2
-        echo "  wsl -d Ubuntu -e bash -lc \"cd '$wsl_path' && git fetch origin && git checkout '$expected_branch' && git pull --ff-only\"" >&2
+    if [[ -z "$main_repo" ]]; then
+        echo "[codex-wsl] Missing main repo path for WSL worktree sync." >&2
         return 1
     fi
+
+    wsl_user="$(_quinlan_wsl_user)" || return 1
+    wsl_main="/home/$wsl_user/projects/quinlan"
+
+    if ! _quinlan_wsl_bash "[ -d '$wsl_main/.git' ] || [ -f '$wsl_main/.git' ]"; then
+        echo "[codex-wsl] Missing WSL main repo: $wsl_main" >&2
+        echo "[codex-wsl] Clone quinlan in WSL before using c/dev." >&2
+        return 1
+    fi
+
+    if ! git -C "$main_repo" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+        echo "[codex-wsl] Pushing branch '$branch' to origin for WSL sync..."
+        git -C "$main_repo" push -u origin "$branch" || return 1
+    fi
+
+    if ! _quinlan_wsl_bash "[ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]"; then
+        _quinlan_create_wsl_worktree "$wsl_path" "$branch" "$wsl_main" || return 1
+    fi
+
+    wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
+    if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
+        echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
+        _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
+    fi
+
+    _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
 }
 
 c() {
     _quinlan_require_command git || return 1
     _quinlan_require_command wsl || return 1
 
-    local win_dir branch wsl_path args
+    local win_dir branch wsl_path args main_repo
     win_dir="$(_quinlan_current_worktree_name)" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
+    main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
 
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
@@ -124,7 +164,7 @@ c() {
     fi
 
     wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
-    _quinlan_require_wsl_worktree "$wsl_path" "$branch" || return 1
+    _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
     _ensure_codex_snowflake_timeout
 
     args=""
@@ -152,8 +192,9 @@ dev() {
     _quinlan_require_command wezterm || return 1
     _quinlan_require_command wsl || return 1
 
-    local branch win_dir wsl_path left_pane
+    local branch win_dir wsl_path left_pane main_repo
     branch="$(git branch --show-current 2>/dev/null)"
+    main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
@@ -161,7 +202,7 @@ dev() {
 
     win_dir="$(_quinlan_current_worktree_name)" || return 1
     wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
-    _quinlan_require_wsl_worktree "$wsl_path" "$branch" || return 1
+    _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
     _ensure_codex_snowflake_timeout
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"

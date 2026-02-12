@@ -8,6 +8,8 @@ compile-helpers.ps1
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- if not $isTimon }}
 dot_claude/CLAUDE.md
-dot_codex/AGENTS.md
+dot_codex/**
 dot_claude/skills/**
+dot_config/quinlan-shell/modules/claude-timon.sh
+dot_config/quinlan-shell/modules/codex-wsl.sh
 {{- end }}

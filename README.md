@@ -2,7 +2,7 @@
 
 Shell and terminal configuration managed by [chezmoi](https://chezmoi.io).
 
-## Source of Truth
+## Source Of Truth
 
 This repository is the source of truth for home-directory shell/runtime config.
 
@@ -15,8 +15,15 @@ This repository is the source of truth for home-directory shell/runtime config.
 | Source | Target | Purpose |
 |---|---|---|
 | `dot_bash_profile` | `~/.bash_profile` | Login shell bootstrap |
-| `dot_bashrc` | `~/.bashrc` | Module loader + role routing |
-| `dot_config/quinlan-shell/modules/*.sh` | `~/.config/quinlan-shell/modules/*.sh` | Explicit shell modules |
+| `dot_bashrc` | `~/.bashrc` | Module loader |
+| `dot_config/quinlan-shell/modules/path.sh` | `~/.config/quinlan-shell/modules/path.sh` | PATH and workspace root setup |
+| `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
+| `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | Base `cc` launcher |
+| `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
+| `dot_config/quinlan-shell/modules/azure.sh` | `~/.config/quinlan-shell/modules/azure.sh` | Azure CLI compatibility wrapper |
+| `dot_config/quinlan-shell/modules/claude-timon.sh` | `~/.config/quinlan-shell/modules/claude-timon.sh` | Timon-only `cc` task-list sharing override |
+| `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex commands (`c`, `dev`) |
+| `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua` | `~/.wezterm.lua` | WezTerm config |
 | `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
 | `dot_codex/AGENTS.md` | `~/.codex/AGENTS.md` | Timon user-level Codex context (Timon only) |
@@ -24,22 +31,28 @@ This repository is the source of truth for home-directory shell/runtime config.
 | `run_once_compile-helpers.ps1` | one-time run | Build helper executables on Windows |
 | `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper source |
 
-## Role Model
+## Behaviour Model
 
-Shell role routing is explicit and driven by `~/.quinlan-user`.
+Deployment-time gating controls user-specific payload; no runtime role file is used in `.bashrc`.
 
-- Valid values: `timon` or `jeremy`
-- No fallback role inference
-- `/update` is expected to set this file
+- Shared modules (all users): `path`, `auto-env`, `claude`, `project`, `azure`
+- Timon-only modules: `claude-timon`, `codex-wsl`, user-level skills, user-level context files
+- Jeremy receives only shared modules
 
-Role behaviour:
+`cc` behaviour by user:
+- Timon: shared task list per worktree (`CLAUDE_CODE_TASK_LIST_ID` derived from worktree name)
+- Jeremy: isolated task list per new session
 
-- `jeremy`: base modules + `cc`
-- `timon`: base modules + Codex/WSL module (`c`, `dev`)
+## Context File Sync
 
-## Timon-Only Gating
+Canonical source for Timon local context is:
 
-`dot_claude/CLAUDE.md`, `dot_codex/AGENTS.md`, and `dot_claude/skills/**` are gated by username in `.chezmoiignore.tmpl`.
+- `quinlan/workspaces/timon/CLAUDE.local.template.md`
+
+Both deployed user-level files in this repo should match that template exactly:
+
+- `dot_claude/CLAUDE.md`
+- `dot_codex/AGENTS.md`
 
 ## Quick Start
 
