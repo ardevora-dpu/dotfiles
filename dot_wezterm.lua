@@ -37,9 +37,10 @@ config.default_prog = { 'C:/Program Files/Git/bin/bash.exe', '--login', '-i' }
 config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = true
 
--- GPU rendering and high refresh rate support
-config.front_end = "WebGpu"
-config.webgpu_power_preference = "HighPerformance"
+-- Use OpenGL for stability: tab-close freezes have been reported with WebGpu on Windows,
+-- and OpenGL is the upstream default again.
+config.front_end = "OpenGL"
+config.webgpu_power_preference = "HighPerformance"  -- no-op unless front_end = "WebGpu"
 config.max_fps = 240
 config.animation_fps = 240
 

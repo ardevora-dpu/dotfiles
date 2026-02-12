@@ -17,7 +17,12 @@ _quinlan_cc_task_list_id() {
 
     worktree="${worktree,,}"
     worktree="${worktree//[^a-z0-9._-]/-}"
-    printf 'quinlan-%s' "$worktree"
+
+    if [[ "$worktree" == quinlan* ]]; then
+        printf '%s' "$worktree"
+    else
+        printf 'quinlan-%s' "$worktree"
+    fi
 }
 
 cc() {
