@@ -116,6 +116,49 @@ if command -v wsl.exe &>/dev/null; then
 WSL_USER=$(wsl.exe -d Ubuntu -e whoami 2>/dev/null | tr -d '\r')
 WSL_PROJECTS="/home/${WSL_USER}/projects"
 
+# Ensure Snowflake MCP has enough startup budget for uvx cold starts.
+_ensure_codex_snowflake_timeout() {
+    local config="$HOME/.codex/config.toml"
+    local timeout="${1:-45.0}"
+
+    [[ -f "$config" ]] || return 0
+    grep -q '^\[mcp_servers\.snowflake\]$' "$config" || return 0
+
+    local tmp
+    tmp=$(mktemp) || return 0
+
+    awk -v timeout="$timeout" '
+    BEGIN { in_sf=0; set=0 }
+    /^\[mcp_servers\.snowflake\]$/ {
+        in_sf=1
+        set=0
+        print
+        next
+    }
+    /^\[/ {
+        if (in_sf && !set) {
+            print "startup_timeout_sec = " timeout
+        }
+        in_sf=0
+    }
+    {
+        if (in_sf && $0 ~ /^[[:space:]]*startup_timeout_sec[[:space:]]*=/) {
+            if (!set) {
+                print "startup_timeout_sec = " timeout
+                set=1
+            }
+            next
+        }
+        print
+    }
+    END {
+        if (in_sf && !set) {
+            print "startup_timeout_sec = " timeout
+        }
+    }
+    ' "$config" > "$tmp" && mv "$tmp" "$config"
+}
+
 # Helper: ensure Windows worktree exists for a branch
 _ensure_win_worktree() {
     local branch="$1"
@@ -274,10 +317,11 @@ c() {
 
     # Ensure WSL worktree exists and is synced
     _ensure_wsl_worktree "$win_dir"
+    _ensure_codex_snowflake_timeout
 
     # Run Codex in WSL (blocking)
     echo "Starting Codex in WSL: $wsl_path"
-    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd $wsl_path && codex --dangerously-bypass-approvals-and-sandbox $*"
+    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd $wsl_path && source scripts/dev/env.sh && codex --dangerously-bypass-approvals-and-sandbox $*"
 }
 
 # Codex in WSL pane (non-blocking, opens new wezterm pane)
@@ -295,12 +339,13 @@ cpane() {
 
     # Ensure WSL worktree exists
     _ensure_wsl_worktree "$win_dir"
+    _ensure_codex_snowflake_timeout
 
     # Open WSL pane and launch Codex (start in home to avoid /mnt path)
     local pane
     pane=$(wezterm cli split-pane --right --percent 40 -- wsl.exe -d Ubuntu --cd "~")
     sleep 1  # WSL takes longer to start than bash
-    wezterm cli send-text --pane-id "$pane" "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
+    wezterm cli send-text --pane-id "$pane" "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox"$'\n'
 
     echo "Codex pane opened in WSL: $wsl_path"
 }
@@ -415,6 +460,8 @@ dev() {
         _ensure_wsl_worktree "$win_dir" "$branch" "$main_repo" || return 1
     fi
 
+    _ensure_codex_snowflake_timeout
+
     cd "$dir" || return 1
     tab_name="$win_dir"
 
@@ -432,7 +479,7 @@ dev() {
 
         # Launch Codex (WSL takes longer)
         sleep 2
-        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
 
         echo "Dev layout '$tab_name' ready: Claude Code (left) | Codex (right)"
@@ -455,9 +502,9 @@ dev() {
 
         # Bottom: WSL takes longer to start (2s for shell prompt to be ready)
         sleep 2
-        wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
-        wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
 
         echo "Dev layout '$tab_name' ready: 2x Claude Code (top) | 2x Codex (bottom)"
