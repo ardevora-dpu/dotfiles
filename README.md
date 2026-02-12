@@ -1,71 +1,48 @@
 # Dotfiles
 
-Shared shell and terminal configuration, managed by [chezmoi](https://chezmoi.io).
+Shell and terminal configuration managed by [chezmoi](https://chezmoi.io).
 
-## What's Included
+## Source of Truth
 
-| File | Target | Purpose |
-|------|--------|---------|
-| `dot_wezterm.lua` | `~/.wezterm.lua` | WezTerm terminal config (GPU, 240fps, Git Bash) |
-| `dot_bashrc` | `~/.bashrc` | Shell aliases, PATH, auto-env loading |
-| `dot_bash_profile` | `~/.bash_profile` | Login shell setup |
-| `dot_claude/skills/*` | `~/.claude/skills/*` | Timon-only user-level Claude/Codex skills (gated by username) |
-| `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper (source) |
+This repository is the source of truth for home-directory shell/runtime config.
+
+- Edit files here.
+- Apply with `chezmoi apply --force`.
+- Do not edit `~/.bashrc` or `~/.wezterm.lua` directly.
+
+## Deployed Files
+
+| Source | Target | Purpose |
+|---|---|---|
+| `dot_bash_profile` | `~/.bash_profile` | Login shell bootstrap |
+| `dot_bashrc` | `~/.bashrc` | Module loader + role routing |
+| `dot_config/quinlan-shell/modules/*.sh` | `~/.config/quinlan-shell/modules/*.sh` | Explicit shell modules |
+| `dot_wezterm.lua` | `~/.wezterm.lua` | WezTerm config |
+| `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
+| `dot_codex/AGENTS.md` | `~/.codex/AGENTS.md` | Timon user-level Codex context (Timon only) |
+| `dot_claude/skills/*` | `~/.claude/skills/*` | Timon user-level skills (Timon only) |
+| `run_once_compile-helpers.ps1` | one-time run | Build helper executables on Windows |
+| `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper source |
+
+## Role Model
+
+Shell role routing is explicit and driven by `~/.quinlan-user`.
+
+- Valid values: `timon` or `jeremy`
+- No fallback role inference
+- `/update` is expected to set this file
+
+Role behaviour:
+
+- `jeremy`: base modules + `cc`
+- `timon`: base modules + Codex/WSL module (`c`, `dev`)
+
+## Timon-Only Gating
+
+`dot_claude/CLAUDE.md`, `dot_codex/AGENTS.md`, and `dot_claude/skills/**` are gated by username in `.chezmoiignore.tmpl`.
 
 ## Quick Start
 
 ```bash
-# First time on a new machine: run /update to configure chezmoi
-# After that, from any worktree:
-chezmoi apply
+chezmoi apply --force
 ```
-
-This copies dotfiles to your home directory, overwriting any existing versions.
-
-**Note:** `/update` creates `~/.config/chezmoi/chezmoi.toml` once per machine, pointing to the repo's dotfiles. After first-time setup, `chezmoi apply` works from any worktree.
-
-For ARD-244 skill scoping, run `chezmoi apply` on both Timon's Windows profile and WSL profile so `~/.claude/skills/` is in sync in both environments.
-
-User/OS gating is handled in `.chezmoiignore.tmpl`:
-- Timon-only skill payload under `dot_claude/skills/` is skipped for non-`chimern` users.
-- `run_once_compile-helpers.ps1` is skipped on non-Windows hosts.
-
-## Compile clip2png (One-Time)
-
-The WezTerm config uses a clipboard helper to paste screenshots. Compile it once:
-
-```bash
-# Find the .NET compiler
-CSC="/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe"
-
-# Compile
-mkdir -p ~/.local/bin
-"$CSC" /optimize /target:exe /out:~/.local/bin/clip2png.exe ~/scripts/clip2png.cs
-```
-
-After this, Ctrl+V in WezTerm will:
-- Paste image path if clipboard contains an image
-- Normal paste otherwise
-
-## Updating Dotfiles
-
-**Source of truth:** Edit files in `setup/dotfiles/`, not `~/`.
-
-```bash
-# 1. Edit the repo version
-vim setup/dotfiles/dot_wezterm.lua
-
-# 2. Apply to home
-chezmoi apply
-
-# 3. Commit
-git add setup/dotfiles/
-git commit -m "chore(dotfiles): update wezterm config"
-```
-
-## Default Paths
-
-The wezterm config uses dynamic paths:
-- `default_cwd` → `~/projects/quinlan` (uses `$USERPROFILE`)
-
-If your repo is elsewhere, the `/update` skill will detect this and fix it.

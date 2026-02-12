@@ -4,11 +4,10 @@ run_once_compile-helpers.ps1
 compile-helpers.ps1
 {{- end }}
 
-{{- /* Timon-only user-level skills: do not deploy for other users (e.g. Jeremy) */ -}}
+{{- /* Timon-only payload: do not deploy for other users (e.g. Jeremy) */ -}}
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- if not $isTimon }}
-dot_claude/skills/email-style/**
-dot_claude/skills/mcp-config-locations/**
-dot_claude/skills/merge/**
-dot_claude/skills/techdebt/**
+dot_claude/CLAUDE.md
+dot_codex/AGENTS.md
+dot_claude/skills/**
 {{- end }}

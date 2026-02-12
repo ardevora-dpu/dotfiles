@@ -1,5 +1,5 @@
 # Quinlan Git Bash profile (Windows native)
-# Managed by chezmoi - edit in quinlan/setup/dotfiles/dot_bash_profile
+# Managed by chezmoi - edit in the Ardevora dotfiles repository.
 
 # Tell Claude Code where to find bash for shell operations
 export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
