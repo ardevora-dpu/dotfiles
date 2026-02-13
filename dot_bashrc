@@ -36,7 +36,6 @@ else
     _quinlan_source_required_module "path.sh"
     _quinlan_source_required_module "auto-env.sh"
     _quinlan_source_required_module "claude.sh"
-    _quinlan_source_required_module "azure.sh"
     _quinlan_source_required_module "project.sh"
 
     # Timon-only modules are present only when deployed by chezmoi gating.
