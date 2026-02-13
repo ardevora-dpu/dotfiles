@@ -20,7 +20,6 @@ This repository is the source of truth for home-directory shell/runtime config.
 | `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
 | `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | Base `cc` launcher |
 | `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
-| `dot_config/quinlan-shell/modules/azure.sh` | `~/.config/quinlan-shell/modules/azure.sh` | Azure CLI compatibility wrapper |
 | `dot_config/quinlan-shell/modules/claude-timon.sh` | `~/.config/quinlan-shell/modules/claude-timon.sh` | Timon-only `cc` task-list sharing override |
 | `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex commands (`c`, `dev`) |
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
@@ -35,7 +34,7 @@ This repository is the source of truth for home-directory shell/runtime config.
 
 Deployment-time gating controls user-specific payload; no runtime role file is used in `.bashrc`.
 
-- Shared modules (all users): `path`, `auto-env`, `claude`, `project`, `azure`
+- Shared modules (all users): `path`, `auto-env`, `claude`, `project`
 - Timon-only modules: `claude-timon`, `codex-wsl`, user-level skills, user-level context files
 - Jeremy receives only shared modules
 
@@ -43,13 +42,14 @@ Deployment-time gating controls user-specific payload; no runtime role file is u
 - Timon: shared task list per worktree (`CLAUDE_CODE_TASK_LIST_ID` derived from worktree name)
 - Jeremy: isolated task list per new session
 
-## Context File Sync
+## Context Model
 
-Canonical source for Timon local context is:
+Canonical project context for Timon is:
 
-- `quinlan/workspaces/timon/CLAUDE.local.template.md`
+- `quinlan/CLAUDE.md` (global shared context)
+- `quinlan/workspaces/timon/CLAUDE.md` (Timon-specific context)
 
-Both deployed user-level files in this repo should match that template exactly:
+User-level files in this repo are intentionally neutral pointers:
 
 - `dot_claude/CLAUDE.md`
 - `dot_codex/AGENTS.md`
