@@ -31,7 +31,7 @@ Now, **you draft the changelog at merge time** — faster, more accurate, human-
 2. Analyze PR → read diff, Linear issue, PR description
 3. Draft changelog → propose Highlights + Technical bullets
 4. Refine → Timon edits/approves the draft
-5. Execute → commit changelog, merge PR, cleanup
+5. Execute → commit changelog, merge PR, notify Jeremy (optional), cleanup
 ```
 
 ---
@@ -243,12 +243,45 @@ gh pr merge $PR_NUMBER --squash --admin
 
 **Why `--admin`:** By the time `/merge` runs, Timon has already reviewed agent feedback and approved. The changelog commit (5.2) hasn't been CI-reviewed yet, which triggers branch protection. `--admin` bypasses this safely since the substantive code was already approved.
 
-### 5.4 Report success
+### 5.4 Notify Jeremy (optional)
+
+After a successful merge, offer to notify Jeremy via a Linear comment.
+
+**Step 1 — Ask whether to notify:**
+
+Use `AskUserQuestion` with:
+- "Notify Jeremy about this merge?"
+- Options: **"Yes, draft a message"** / **"Skip"**
+
+If Timon skips, go straight to 5.5.
+
+**Step 2 — Draft the message:**
+
+Compose a short Linear comment based on the changelog entry. Format:
+
+> @j.lang Shipped in PR #235 — **{headline}**
+>
+> {Before → After → Why summary, if highlight exists. Otherwise 1-2 technical bullets.}
+>
+> Available on your next `/update`.
+
+Present the draft to Timon via `AskUserQuestion`:
+- "Send this to Jeremy on {ARD-XXX}?"
+- Options: **"Send"** / **"Edit (I'll rewrite)"** / **"Skip"**
+
+If "Edit" — Timon provides replacement text, re-present for confirmation.
+If "Send" — post the comment on the linked Linear issue using `mcp__linear__create_comment`, @mentioning `@j.lang`.
+If "Skip" — move on.
+
+**Requires a linked Linear issue.** If no issue was found in Phase 2.3, skip this step entirely (nothing to comment on).
+
+### 5.5 Report success
 
 ```
 ✓ Changelog committed
 ✓ PR #235 merged (squash)
 ✓ Remote branch auto-deleted by GitHub
+✓ Jeremy notified on ARD-173        ← only if sent
 
 Next /update will show:
   Highlights: "Reliable changelog with smart first-run detection"
@@ -307,6 +340,26 @@ Timon: go
 Claude: ✓ Changelog committed
         ✓ PR #235 merged
         ✓ Remote branch auto-deleted by GitHub
+
+        Notify Jeremy about this merge?  [Yes, draft a message] [Skip]
+
+Timon: Yes
+
+Claude: Here's the draft for ARD-173:
+
+        @j.lang Shipped in PR #235 — **Reliable changelog so Jeremy
+        always sees what's new**
+
+        Before: /update could miss commits depending on branch.
+        After: State tracking compares against origin/main.
+
+        Available on your next /update.
+
+        Send this to Jeremy on ARD-173?  [Send] [Edit] [Skip]
+
+Timon: Send
+
+Claude: ✓ Jeremy notified on ARD-173
 ```
 
 ### Example 2: Technical-only PR
