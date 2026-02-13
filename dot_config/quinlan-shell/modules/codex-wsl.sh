@@ -31,11 +31,17 @@ _quinlan_wsl_user() {
 }
 
 _quinlan_current_worktree_name() {
-    local win_dir
-    win_dir="$(basename "$PWD")"
+    local repo_root win_dir
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ -z "$repo_root" ]]; then
+        echo "[codex-wsl] Could not resolve git worktree root from: $PWD" >&2
+        return 1
+    fi
+
+    win_dir="$(basename "$repo_root")"
 
     if [[ ! "$win_dir" == quinlan* ]]; then
-        echo "[codex-wsl] Current directory is not a quinlan worktree: $win_dir" >&2
+        echo "[codex-wsl] Git worktree root is not a quinlan worktree: $win_dir" >&2
         return 1
     fi
 
@@ -48,6 +54,11 @@ _quinlan_wsl_worktree_path() {
 
     wsl_user="$(_quinlan_wsl_user)" || return 1
     printf '/home/%s/projects/%s' "$wsl_user" "$win_dir"
+}
+
+_quinlan_wsl_context_path() {
+    local wsl_path="$1"
+    printf '%s/workspaces/timon' "$wsl_path"
 }
 
 _ensure_codex_snowflake_timeout() {
@@ -153,7 +164,7 @@ c() {
     _quinlan_require_command git || return 1
     _quinlan_require_command wsl || return 1
 
-    local win_dir branch wsl_path args main_repo
+    local win_dir branch wsl_path wsl_context_path args main_repo
     win_dir="$(_quinlan_current_worktree_name)" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -165,6 +176,11 @@ c() {
 
     wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
     _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
+    wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
+    if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
+        echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
+        return 1
+    fi
     _ensure_codex_snowflake_timeout
 
     args=""
@@ -172,8 +188,8 @@ c() {
         printf -v args ' %q' "$@"
     fi
 
-    echo "Starting Codex in WSL: $wsl_path"
-    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && codex --dangerously-bypass-approvals-and-sandbox${args}"
+    echo "Starting Codex in WSL: $wsl_context_path"
+    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex --dangerously-bypass-approvals-and-sandbox${args}"
 }
 
 dev() {
@@ -192,7 +208,7 @@ dev() {
     _quinlan_require_command wezterm || return 1
     _quinlan_require_command wsl || return 1
 
-    local branch win_dir wsl_path left_pane main_repo
+    local branch win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
     if [[ -z "$branch" ]]; then
@@ -203,6 +219,16 @@ dev() {
     win_dir="$(_quinlan_current_worktree_name)" || return 1
     wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
     _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
+    wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
+    if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
+        echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
+        return 1
+    fi
+    claude_workspace="$main_repo/workspaces/timon"
+    if [[ ! -d "$claude_workspace" ]]; then
+        echo "[codex-wsl] Missing Timon workspace in Windows worktree: $claude_workspace" >&2
+        return 1
+    fi
     _ensure_codex_snowflake_timeout
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
@@ -216,10 +242,11 @@ dev() {
         right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")"
 
         sleep 0.3
-        wezterm cli send-text --pane-id "$left_pane" $'cc\n'
+        wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
+"
 
         sleep 2
-        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
 
         echo "Dev layout '$win_dir' ready: Claude Code (left) | Codex (right)"
@@ -232,13 +259,15 @@ dev() {
     bottom_right="$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_right" -- wsl.exe -d Ubuntu --cd "~")"
 
     sleep 0.3
-    wezterm cli send-text --pane-id "$left_pane" $'cc\n'
-    wezterm cli send-text --pane-id "$top_right" $'cc\n'
+    wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
+"
+    wezterm cli send-text --no-paste --pane-id "$top_right" -- "cd '$claude_workspace' && cc
+"
 
     sleep 2
-    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
-    wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd $wsl_path && source scripts/dev/env.sh && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+    wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "
 
     echo "Dev layout '$win_dir' ready: 2x Claude Code (top) | 2x Codex (bottom)"
