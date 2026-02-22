@@ -1,64 +1,56 @@
 # Dotfiles
 
-Shared shell and terminal configuration, managed by [chezmoi](https://chezmoi.io).
+Shell and terminal configuration managed by [chezmoi](https://chezmoi.io).
 
-## What's Included
+## Source Of Truth
 
-| File | Target | Purpose |
-|------|--------|---------|
-| `dot_wezterm.lua` | `~/.wezterm.lua` | WezTerm terminal config (GPU, 240fps, Git Bash) |
-| `dot_bashrc` | `~/.bashrc` | Shell aliases, PATH, auto-env loading |
-| `dot_bash_profile` | `~/.bash_profile` | Login shell setup |
-| `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper (source) |
+This repository is the source of truth for home-directory shell/runtime config.
+
+- Edit files here.
+- Apply with `chezmoi apply --force`.
+- Do not edit `~/.bashrc` or `~/.wezterm.lua` directly.
+
+## Deployed Files
+
+| Source | Target | Purpose |
+|---|---|---|
+| `dot_bash_profile` | `~/.bash_profile` | Login shell bootstrap |
+| `dot_bashrc` | `~/.bashrc` | Module loader |
+| `dot_config/quinlan-shell/modules/path.sh` | `~/.config/quinlan-shell/modules/path.sh` | PATH and workspace root setup |
+| `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
+| `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | Base `cc` launcher |
+| `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
+| `dot_config/quinlan-shell/modules/claude-timon.sh` | `~/.config/quinlan-shell/modules/claude-timon.sh` | Timon-only `cc` task-list sharing override |
+| `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex commands (`c`, `dev`) |
+| `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
+| `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
+| `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
+| `run_once_compile-helpers.ps1` | one-time run | Build helper executables on Windows |
+| `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper source |
+
+## Behaviour Model
+
+Deployment-time gating controls user-specific payload; no runtime role file is used in `.bashrc`.
+
+- Shared modules (all users): `path`, `auto-env`, `claude`, `project`
+- Timon-only modules: `claude-timon`, `codex-wsl`
+- Jeremy receives only shared modules
+
+`cc` behaviour by user:
+- Timon: shared task list per worktree (`CLAUDE_CODE_TASK_LIST_ID` derived from worktree name)
+- Jeremy: isolated task list per new session
+
+## Context Model
+
+Canonical project context for Timon is:
+
+- `quinlan/CLAUDE.md` (global shared context)
+- `quinlan/workspaces/timon/CLAUDE.md` (Timon-specific context)
+
+Codex and Claude should be launched from `workspaces/timon` when working in Quinlan.
 
 ## Quick Start
 
 ```bash
-# First time on a new machine: run /update to configure chezmoi
-# After that, from any worktree:
-chezmoi apply
+chezmoi apply --force
 ```
-
-This copies dotfiles to your home directory, overwriting any existing versions.
-
-**Note:** `/update` creates `~/.config/chezmoi/chezmoi.toml` once per machine, pointing to the repo's dotfiles. After first-time setup, `chezmoi apply` works from any worktree.
-
-## Compile clip2png (One-Time)
-
-The WezTerm config uses a clipboard helper to paste screenshots. Compile it once:
-
-```bash
-# Find the .NET compiler
-CSC="/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe"
-
-# Compile
-mkdir -p ~/.local/bin
-"$CSC" /optimize /target:exe /out:~/.local/bin/clip2png.exe ~/scripts/clip2png.cs
-```
-
-After this, Ctrl+V in WezTerm will:
-- Paste image path if clipboard contains an image
-- Normal paste otherwise
-
-## Updating Dotfiles
-
-**Source of truth:** Edit files in `setup/dotfiles/`, not `~/`.
-
-```bash
-# 1. Edit the repo version
-vim setup/dotfiles/dot_wezterm.lua
-
-# 2. Apply to home
-chezmoi apply
-
-# 3. Commit
-git add setup/dotfiles/
-git commit -m "chore(dotfiles): update wezterm config"
-```
-
-## Default Paths
-
-The wezterm config uses dynamic paths:
-- `default_cwd` → `~/projects/quinlan` (uses `$USERPROFILE`)
-
-If your repo is elsewhere, the `/update` skill will detect this and fix it.
