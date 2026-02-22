@@ -10,6 +10,11 @@ _quinlan_require_command() {
 
 _quinlan_wsl_bash() {
     local script="$1"
+    wsl -d Ubuntu -e bash -c "$script"
+}
+
+_quinlan_wsl_login_bash() {
+    local script="$1"
     wsl -d Ubuntu -e bash -lc "$script"
 }
 
@@ -115,31 +120,74 @@ _ensure_wsl_codex_dbt_mcp_env() {
     _quinlan_wsl_bash "[ -f '$config' ]" || return 0
     _quinlan_wsl_bash "grep -q '^\\[mcp_servers\\.dbt-mcp\\]$' '$config'" || return 0
 
-    _quinlan_wsl_bash "WSL_CODEX_CONFIG='$config' WSL_DBT_PATH='$expected_dbt' WSL_DBT_PROJECT_DIR='$expected_project' python3 - <<'PY'
+    _quinlan_wsl_login_bash "WSL_CODEX_CONFIG='$config' WSL_DBT_PATH='$expected_dbt' WSL_DBT_PROJECT_DIR='$expected_project' python3 - <<'PY'
 import os
-import re
 from pathlib import Path
 
 config = Path(os.environ['WSL_CODEX_CONFIG'])
 dbt_path = os.environ['WSL_DBT_PATH']
 dbt_project_dir = os.environ['WSL_DBT_PROJECT_DIR']
-
 text = config.read_text()
 if '[mcp_servers.dbt-mcp]' not in text:
     raise SystemExit(0)
 
-section_pattern = re.compile(r'(?ms)^\\[mcp_servers\\.dbt-mcp\\.env\\]\\n(.*?)(?=^\\[|\\Z)')
-replacement = (
-    '[mcp_servers.dbt-mcp.env]\\n'
-    f'DBT_PATH = \"{dbt_path}\"\\n'
-    f'DBT_PROJECT_DIR = \"{dbt_project_dir}\"\\n'
-)
+lines = text.splitlines()
+had_trailing_newline = text.endswith('\n')
+out = []
+in_env = False
+saw_env = False
+wrote_path = False
+wrote_project = False
 
-if section_pattern.search(text):
-    updated = section_pattern.sub(replacement, text, count=1)
-else:
-    separator = '\\n' if text.endswith('\\n') else '\\n\\n'
-    updated = text + separator + replacement
+def emit_missing():
+    global wrote_path, wrote_project
+    if not wrote_path:
+        out.append(f'DBT_PATH = \"{dbt_path}\"')
+        wrote_path = True
+    if not wrote_project:
+        out.append(f'DBT_PROJECT_DIR = \"{dbt_project_dir}\"')
+        wrote_project = True
+
+for line in lines:
+    if line == '[mcp_servers.dbt-mcp.env]':
+        in_env = True
+        saw_env = True
+        wrote_path = False
+        wrote_project = False
+        out.append(line)
+        continue
+
+    if in_env and line.startswith('['):
+        emit_missing()
+        in_env = False
+
+    if in_env and line.lstrip().startswith('DBT_PATH'):
+        if not wrote_path:
+            out.append(f'DBT_PATH = \"{dbt_path}\"')
+            wrote_path = True
+        continue
+
+    if in_env and line.lstrip().startswith('DBT_PROJECT_DIR'):
+        if not wrote_project:
+            out.append(f'DBT_PROJECT_DIR = \"{dbt_project_dir}\"')
+            wrote_project = True
+        continue
+
+    out.append(line)
+
+if in_env:
+    emit_missing()
+
+if not saw_env:
+    if out and out[-1] != '':
+        out.append('')
+    out.append('[mcp_servers.dbt-mcp.env]')
+    out.append(f'DBT_PATH = \"{dbt_path}\"')
+    out.append(f'DBT_PROJECT_DIR = \"{dbt_project_dir}\"')
+
+updated = '\n'.join(out)
+if had_trailing_newline:
+    updated += '\n'
 
 if updated != text:
     config.write_text(updated)
@@ -154,7 +202,7 @@ _ensure_wsl_codex_project_doc_fallback() {
 
     _quinlan_wsl_bash "[ -f '$config' ]" || return 0
 
-    _quinlan_wsl_bash "WSL_CODEX_CONFIG='$config' python3 - <<'PY'
+    _quinlan_wsl_login_bash "WSL_CODEX_CONFIG='$config' python3 - <<'PY'
 import os
 from pathlib import Path
 
@@ -211,7 +259,17 @@ _quinlan_create_wsl_worktree() {
     echo "[codex-wsl] Creating WSL worktree: $wsl_path (branch: $branch)"
 
     _quinlan_wsl_bash "[ -d '$wsl_path' ] && rm -rf '$wsl_path' || true"
-    _quinlan_wsl_bash "cd '$wsl_main' && git worktree prune && git fetch origin && git worktree add '$wsl_path' 'origin/$branch'"
+    _quinlan_wsl_bash "cd '$wsl_main' && git worktree prune"
+
+    if ! _quinlan_wsl_bash "cd '$wsl_main' && git fetch origin '+refs/heads/$branch:refs/remotes/origin/$branch'"; then
+        echo "[codex-wsl] Failed to fetch branch '$branch' in WSL main repo." >&2
+        return 1
+    fi
+
+    if ! _quinlan_wsl_bash "cd '$wsl_main' && git worktree add '$wsl_path' 'origin/$branch'"; then
+        echo "[codex-wsl] Failed to create WSL worktree for '$branch'." >&2
+        return 1
+    fi
 }
 
 _quinlan_ensure_wsl_worktree() {

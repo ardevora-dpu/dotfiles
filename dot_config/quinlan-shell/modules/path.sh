@@ -79,8 +79,12 @@ if command -v mise >/dev/null 2>&1 && [ -n "$LOCALAPPDATA" ]; then
 fi
 
 if [[ -z "${WORKSPACE_ROOT:-}" && -f "$HOME/.quinlan-repo" ]]; then
-    WORKSPACE_ROOT="$(dirname "$(cat "$HOME/.quinlan-repo")")"
-    export WORKSPACE_ROOT
+    repo_root="$(tr -d '\r\n' < "$HOME/.quinlan-repo")"
+    if [[ -n "$repo_root" ]]; then
+        WORKSPACE_ROOT="$(dirname "$repo_root")"
+        export WORKSPACE_ROOT
+    fi
 fi
 
 unset -f _win_path
+unset repo_root
