@@ -1,0 +1,15 @@
+{{- /* Skip Windows-only run_once script on non-Windows hosts */ -}}
+{{- if ne .chezmoi.os "windows" }}
+run_once_compile-helpers.ps1
+compile-helpers.ps1
+{{- end }}
+
+{{- /* Timon-only payload: do not deploy for other users (e.g. Jeremy) */ -}}
+{{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
+{{- if not $isTimon }}
+dot_claude/CLAUDE.md
+dot_claude/skills/**
+dot_codex/**
+dot_config/quinlan-shell/modules/claude-timon.sh
+dot_config/quinlan-shell/modules/codex-wsl.sh
+{{- end }}
