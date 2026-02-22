@@ -282,7 +282,7 @@ _create_wsl_worktree() {
 
 _ensure_wsl_codex_dbt_mcp_env() {
     local wsl_path="$1"
-    local config="$HOME/.codex/config.toml"
+    local config="/home/${WSL_USER}/.codex/config.toml"
     local expected_dbt="$wsl_path/.venv/bin/dbt"
     local expected_project="$wsl_path/warehouse"
 
