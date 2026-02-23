@@ -1,0 +1,28 @@
+{
+  "pending_rebuilds": [
+    {
+      "ticker": "KOG-NO",
+      "company": "Kongsberg Gruppen ASA",
+      "company_id": 875854,
+      "issue": "Norway flagged as non-DM in stale materialised table",
+      "resolution": "dbt rebuild int_investable_universe_weekly_flags+",
+      "ticket": "quinlan-udkf",
+      "blocker": "quinlan-sn35",
+      "added": "2026-01-18",
+      "batch_path": "workspaces/jeremy/reviews/jan2026_ideas/batches/Defence_Aerospace/EU_Defence/KOG-NO"
+    }
+  ],
+  "excluded_by_design": [
+    {
+      "ticker": "TSM-US",
+      "company": "Taiwan Semiconductor (ADR)",
+      "issue": "Taiwan = Emerging Market, not in msci_dm_countries",
+      "workaround": "Use 2330-TW for data if available, or query PRICES_RAW directly",
+      "primary_listing": "2330-TW",
+      "added": "2026-01-18",
+      "batch_path": "workspaces/jeremy/reviews/jan2026_ideas/batches/Semiconductors/Semi_Capex/TSM-US"
+    }
+  ],
+  "last_updated": "2026-01-18T09:37:00Z",
+  "notes": "Run 'dbt build --select int_investable_universe_weekly_flags+ --target prod' after quinlan-sn35 is resolved"
+}
