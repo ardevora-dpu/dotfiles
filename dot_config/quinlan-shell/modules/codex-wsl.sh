@@ -66,6 +66,7 @@ _quinlan_wsl_context_path() {
     printf '%s/workspaces/timon' "$wsl_path"
 }
 
+# shellcheck disable=SC2120 # Default parameter is intentional — callers use the default
 _ensure_codex_snowflake_timeout() {
     local config="$HOME/.codex/config.toml"
     local timeout="${1:-45.0}"
