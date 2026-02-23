@@ -312,11 +312,11 @@ workspaces/jeremy/evidence/
 **Discovery:**
 
 ```bash
-# Find all evidence files in date range
-find workspaces/jeremy/evidence -name "2026-01-*.md" -o -name "2026-02-*.md"
+# Find all evidence files in date range (substitute actual year-month values)
+find workspaces/jeremy/evidence -name "{YYYY-MM}-*.md"
 
-# Or use Glob tool
-Glob pattern: workspaces/jeremy/evidence/**/2026-0{1,2}-*.md
+# Or use Glob tool — expand to cover all months in the recap period
+Glob pattern: workspaces/jeremy/evidence/**/{YYYY-MM}-*.md
 ```
 
 **Key file patterns:**
