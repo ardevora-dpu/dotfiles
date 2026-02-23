@@ -5,20 +5,24 @@ local config = wezterm.config_builder()
 -- Dynamic home path - works on any Windows machine
 local home = os.getenv("USERPROFILE"):gsub("\\", "/")
 
--- Read project root from ~/.quinlan_root (created by /update)
--- Falls back to home if file doesn't exist (first run)
-local function read_quinlan_root()
+-- Open to the user's workspace inside the repo.
+-- Falls back to home if ~/.quinlan_root doesn't exist (first run).
+local function read_default_cwd()
   local f = io.open(home .. '/.quinlan_root', 'r')
   if f then
     local path = f:read('*l')
     f:close()
     if path and path ~= '' then
-      return path:gsub('\\', '/'):gsub('%s+$', '')
+{{- if contains "Jeremy" .chezmoi.username }}
+      return path:gsub('\\', '/'):gsub('%s+$', '') .. '/workspaces/jeremy'
+{{- else }}
+      return path:gsub('\\', '/'):gsub('%s+$', '') .. '/workspaces/timon'
+{{- end }}
     end
   end
   return home
 end
-config.default_cwd = read_quinlan_root()
+config.default_cwd = read_default_cwd()
 
 -- Clipboard image helper (compile once: see setup/dotfiles/scripts/clip2png.cs)
 local clip2png = home .. '/.local/bin/clip2png.exe'
