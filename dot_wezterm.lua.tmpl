@@ -42,13 +42,8 @@ config.enable_kitty_keyboard = true
 config.enable_csi_u_key_encoding = true
 
 -- GPU rendering and high refresh rate support
--- Intel iGPUs crash/hang with WebGpu on close (wezterm#6190, #3229)
-{{- if contains "Jeremy" .chezmoi.username }}
+-- OpenGL everywhere: WebGpu causes crashes/hangs on close (wezterm#6190, #3229)
 config.front_end = "OpenGL"
-{{- else }}
-config.front_end = "WebGpu"
-config.webgpu_power_preference = "HighPerformance"
-{{- end }}
 config.max_fps = 240
 config.animation_fps = 240
 
