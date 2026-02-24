@@ -5,19 +5,16 @@ local config = wezterm.config_builder()
 -- Dynamic home path - works on any Windows machine
 local home = os.getenv("USERPROFILE"):gsub("\\", "/")
 
--- Open to the user's workspace inside the repo.
--- Falls back to home if ~/.quinlan_root doesn't exist (first run).
+-- Open to the directory specified in ~/.quinlan_root.
+-- /update writes this file with the user's workspace path (e.g. .../workspaces/jeremy).
+-- Falls back to home if the file doesn't exist (first run before /update).
 local function read_default_cwd()
   local f = io.open(home .. '/.quinlan_root', 'r')
   if f then
     local path = f:read('*l')
     f:close()
     if path and path ~= '' then
-{{- if contains "Jeremy" .chezmoi.username }}
-      return path:gsub('\\', '/'):gsub('%s+$', '') .. '/workspaces/jeremy'
-{{- else }}
-      return path:gsub('\\', '/'):gsub('%s+$', '') .. '/workspaces/timon'
-{{- end }}
+      return path:gsub('\\', '/'):gsub('%s+$', '')
     end
   end
   return home
