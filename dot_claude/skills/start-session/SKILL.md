@@ -71,9 +71,9 @@ Resolve the main repo root via `git rev-parse --show-toplevel`. Worktrees are si
    # Branch already exists locally — check it out
    git worktree add ../quinlan-ard-{N} {gitBranchName}
 
-   # Branch exists on remote only — fetch first
+   # Branch exists on remote only — fetch and create local tracking branch
    git fetch origin {gitBranchName}
-   git worktree add ../quinlan-ard-{N} origin/{gitBranchName}
+   git worktree add ../quinlan-ard-{N} -b {gitBranchName} origin/{gitBranchName}
    ```
 
 3. **No `gitBranchName` from Linear** — If the field is empty or null, derive one:
@@ -86,9 +86,9 @@ Both Claude Code and Codex support initial prompts via file convention. Write th
 1. **Write the Claude prompt file** to the worktree root:
 
    ```bash
-   cat > "<worktree_absolute_path>/.claude-init-prompt" << 'PROMPT'
+   cat > "<worktree_absolute_path>/.claude-init-prompt" << 'INIT_PROMPT_EOF'
    <priming prompt content — see Claude template below>
-   PROMPT
+   INIT_PROMPT_EOF
    ```
 
 2. **Write the Codex prompt file** to the WSL worktree:
@@ -96,9 +96,9 @@ Both Claude Code and Codex support initial prompts via file convention. Write th
    Derive the WSL path: `/home/<wsl_user>/projects/quinlan-ard-{N}` (resolve `<wsl_user>` via `wsl -d Ubuntu -e whoami`).
 
    ```bash
-   wsl -d Ubuntu -e bash -c "cat > '<wsl_worktree_path>/.codex-init-prompt' << 'PROMPT'
+   wsl -d Ubuntu -e bash -c "cat > '<wsl_worktree_path>/.codex-init-prompt' << 'INIT_PROMPT_EOF'
    <priming prompt content — see Codex template below>
-   PROMPT"
+   INIT_PROMPT_EOF"
    ```
 
    If the WSL worktree doesn't exist yet (first time), skip the Codex prompt — `dev 2` will create it, and Codex launches without priming.
