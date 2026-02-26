@@ -411,7 +411,7 @@ dev() {
 "
 
         sleep 2
-        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi
 "
 
         echo "Dev layout '$win_dir' ready: Claude Code (left) | Codex (right)"
@@ -430,7 +430,7 @@ dev() {
 "
 
     sleep 2
-    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
+    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi
 "
     wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && codex --dangerously-bypass-approvals-and-sandbox
 "

@@ -20,7 +20,6 @@ This repository is the source of truth for home-directory shell/runtime config.
 | `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
 | `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | Base `cc` launcher |
 | `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
-| `dot_config/quinlan-shell/modules/claude-timon.sh` | `~/.config/quinlan-shell/modules/claude-timon.sh` | Timon-only `cc` task-list sharing override |
 | `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex commands (`c`, `dev`) |
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
@@ -33,12 +32,10 @@ This repository is the source of truth for home-directory shell/runtime config.
 Deployment-time gating controls user-specific payload; no runtime role file is used in `.bashrc`.
 
 - Shared modules (all users): `path`, `auto-env`, `claude`, `project`
-- Timon-only modules: `claude-timon`, `codex-wsl`
+- Timon-only modules: `codex-wsl`
 - Jeremy receives only shared modules
 
-`cc` behaviour by user:
-- Timon: shared task list per worktree (`CLAUDE_CODE_TASK_LIST_ID` derived from worktree name)
-- Jeremy: isolated task list per new session
+`cc` behaviour: isolated task list per session (default for all users).
 
 ## Context Model
 
