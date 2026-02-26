@@ -39,7 +39,6 @@ else
     _quinlan_source_required_module "project.sh"
 
     # Timon-only modules are present only when deployed by chezmoi gating.
-    _quinlan_source_optional_module "claude-timon.sh"
     _quinlan_source_optional_module "codex-wsl.sh"
     _quinlan_source_optional_module "local.sh"
 fi
