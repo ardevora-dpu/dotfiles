@@ -29,5 +29,5 @@ g() {
         return 1
     fi
 
-    COMSPEC="$_QUINLAN_PWSH_PATH" gemini --approval-mode=plan "$@"
+    COMSPEC="$_QUINLAN_PWSH_PATH" gemini --auto "$@"
 }
