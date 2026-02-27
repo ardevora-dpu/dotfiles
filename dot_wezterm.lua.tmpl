@@ -100,7 +100,11 @@ wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_wid
   if cwd then
     local path = cwd.file_path or tostring(cwd)
     path = path:gsub('\\', '/'):gsub('/$', '')
-    dir_name = path:match('([^/]+)$') or 'shell'
+    dir_name = path:match('/(quinlan%-ard%-[^/]+)')
+              or path:match('/(quinlan)/')
+              or path:match('/(quinlan)$')
+              or path:match('([^/]+)$')
+              or 'shell'
   end
 
   -- For quinlan worktrees, show just the suffix (e.g., "weekly-recap")
