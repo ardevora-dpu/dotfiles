@@ -365,13 +365,8 @@ c() {
 }
 
 dev() {
-    local panes=3
-    if [[ "${1:-}" == "2" ]]; then
-        panes=2
-        shift
-    fi
     if (( $# > 0 )); then
-        echo "Usage: dev [2]" >&2
+        echo "Usage: dev" >&2
         return 1
     fi
 
@@ -418,37 +413,16 @@ dev() {
     local codex_cmd
     codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
 
-    if [[ "$panes" == "2" ]]; then
-        local right_pane
-        right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")"
-
-        sleep 0.3
-        wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
-"
-
-        sleep 2
-        wezterm cli send-text --no-paste --pane-id "$right_pane" -- "$codex_cmd
-"
-
-        echo "Dev layout '$win_dir' ready: Claude Code (left) | Codex (right)"
-        return 0
-    fi
-
-    # 3-pane layout: Claude Code (left) | Gemini (middle) | Codex (right)
-    # Split left at 67% to create middle+right, then split that at 50%.
-    local middle_pane right_pane
-    middle_pane="$(wezterm cli split-pane --right --percent 67 --pane-id "$left_pane" --cwd "$PWD")"
-    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$middle_pane" -- wsl.exe -d Ubuntu --cd "~")"
+    local right_pane
+    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")"
 
     sleep 0.3
     wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
-"
-    wezterm cli send-text --no-paste --pane-id "$middle_pane" -- "cd '$claude_workspace' && g
 "
 
     sleep 2
     wezterm cli send-text --no-paste --pane-id "$right_pane" -- "$codex_cmd
 "
 
-    echo "Dev layout '$win_dir' ready: Claude Code (left) | Gemini (middle) | Codex (right)"
+    echo "Dev layout '$win_dir' ready: Claude Code (left) | Codex (right)"
 }
