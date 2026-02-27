@@ -314,9 +314,16 @@ _quinlan_ensure_wsl_worktree() {
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
         echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
         # Stash dirty state so checkout succeeds, then pop to preserve Codex work.
+        # Only pop if we actually created a stash entry (avoid popping older unrelated stashes).
+        local pre_stash_count
+        pre_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
         _quinlan_wsl_bash "cd '$wsl_path' && git stash --include-untracked -q" 2>/dev/null || true
         _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
-        _quinlan_wsl_bash "cd '$wsl_path' && git stash pop -q" 2>/dev/null || true
+        local post_stash_count
+        post_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+        if [[ "$post_stash_count" -gt "$pre_stash_count" ]]; then
+            _quinlan_wsl_bash "cd '$wsl_path' && git stash pop -q" 2>/dev/null || true
+        fi
     fi
 
     _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
