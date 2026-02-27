@@ -365,11 +365,6 @@ c() {
 }
 
 dev() {
-    if (( $# > 0 )); then
-        echo "Usage: dev" >&2
-        return 1
-    fi
-
     _quinlan_require_command git || return 1
     _quinlan_require_command jq || return 1
     _quinlan_require_command wezterm || return 1
@@ -400,6 +395,15 @@ dev() {
     _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
     _ensure_wsl_codex_project_doc_fallback
     _ensure_codex_no_user_agents
+
+    # Copy Codex init prompt from Windows worktree to WSL if present.
+    # /start-session writes both prompt files to the Windows worktree root;
+    # dev handles the cross-boundary copy so callers don't need WSL paths.
+    local win_codex_prompt="$main_repo/.codex-init-prompt"
+    if [[ -f "$win_codex_prompt" ]]; then
+        _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"
+        rm -f "$win_codex_prompt"
+    fi
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
     if [[ -z "$left_pane" || "$left_pane" == "null" ]]; then
