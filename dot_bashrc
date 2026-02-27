@@ -40,6 +40,7 @@ else
 
     # Timon-only modules are present only when deployed by chezmoi gating.
     _quinlan_source_optional_module "codex-wsl.sh"
+    _quinlan_source_optional_module "gemini.sh"
     _quinlan_source_optional_module "local.sh"
 fi
 

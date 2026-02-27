@@ -313,7 +313,17 @@ _quinlan_ensure_wsl_worktree() {
     wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
         echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
+        # Stash dirty state so checkout succeeds, then pop to preserve Codex work.
+        # Only pop if we actually created a stash entry (avoid popping older unrelated stashes).
+        local pre_stash_count
+        pre_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+        _quinlan_wsl_bash "cd '$wsl_path' && git stash --include-untracked -q" 2>/dev/null || true
         _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
+        local post_stash_count
+        post_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+        if [[ "$post_stash_count" -gt "$pre_stash_count" ]]; then
+            _quinlan_wsl_bash "cd '$wsl_path' && git stash pop -q" 2>/dev/null || true
+        fi
     fi
 
     _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
@@ -355,7 +365,7 @@ c() {
 }
 
 dev() {
-    local panes=4
+    local panes=3
     if [[ "${1:-}" == "2" ]]; then
         panes=2
         shift
@@ -424,22 +434,21 @@ dev() {
         return 0
     fi
 
-    local top_right bottom_left bottom_right
-    top_right="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" --cwd "$PWD")"
-    bottom_left="$(wezterm cli split-pane --bottom --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")"
-    bottom_right="$(wezterm cli split-pane --bottom --percent 50 --pane-id "$top_right" -- wsl.exe -d Ubuntu --cd "~")"
+    # 3-pane layout: Claude Code (left) | Gemini (middle) | Codex (right)
+    # Split left at 67% to create middle+right, then split that at 50%.
+    local middle_pane right_pane
+    middle_pane="$(wezterm cli split-pane --right --percent 67 --pane-id "$left_pane" --cwd "$PWD")"
+    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$middle_pane" -- wsl.exe -d Ubuntu --cd "~")"
 
     sleep 0.3
     wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
 "
-    wezterm cli send-text --no-paste --pane-id "$top_right" -- "cd '$claude_workspace' && cc
+    wezterm cli send-text --no-paste --pane-id "$middle_pane" -- "cd '$claude_workspace' && g
 "
 
     sleep 2
-    wezterm cli send-text --no-paste --pane-id "$bottom_left" -- "$codex_cmd
-"
-    wezterm cli send-text --no-paste --pane-id "$bottom_right" -- "$codex_cmd
+    wezterm cli send-text --no-paste --pane-id "$right_pane" -- "$codex_cmd
 "
 
-    echo "Dev layout '$win_dir' ready: 2x Claude Code (top) | 2x Codex (bottom)"
+    echo "Dev layout '$win_dir' ready: Claude Code (left) | Gemini (middle) | Codex (right)"
 }

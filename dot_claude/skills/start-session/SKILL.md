@@ -2,14 +2,14 @@
 name: start-session
 description: >
   Bootstrap dev sessions from Linear tickets. Creates worktree,
-  opens WezTerm tab with Claude + Codex layout, primes agents with
-  ticket context. Use when starting work on one or more tickets.
+  opens WezTerm tab with Claude + Gemini + Codex layout, primes agents
+  with ticket context. Use when starting work on one or more tickets.
 argument-hint: "ARD-383 or 383 or ARD-215 ARD-383"
 ---
 
 # Start Session
 
-Bootstrap a full development session from Linear ticket references. Creates a git worktree, opens a WezTerm tab with the `dev 2` layout (Claude Code + Codex), primes the Claude session with ticket context, and moves the ticket to In Progress.
+Bootstrap a full development session from Linear ticket references. Creates a git worktree, opens a WezTerm tab with the `dev` layout (Claude Code + Gemini + Codex), primes agents with ticket context, and moves the ticket to In Progress.
 
 **For Timon only.** Platform: Windows native (Git Bash + WezTerm).
 
@@ -115,10 +115,10 @@ Both Claude Code and Codex support initial prompts via file convention. Write th
 
    ```bash
    sleep 0.5
-   wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev 2\n'
+   wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev\n'
    ```
 
-   `dev 2` handles the full layout: splits the pane, mirrors the WSL worktree, and starts both tools. `cc` picks up `.claude-init-prompt`; the codex launch command picks up `.codex-init-prompt`. Both launch directly into the priming task.
+   `dev` handles the full layout: splits into 3 panes (Claude Code | Gemini | Codex), mirrors the WSL worktree, and starts all three tools. `cc` picks up `.claude-init-prompt`; the codex launch command picks up `.codex-init-prompt`. All three launch directly into the priming task.
 
 #### Claude Priming Prompt Template
 
