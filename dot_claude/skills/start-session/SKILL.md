@@ -81,36 +81,15 @@ Resolve the main repo root via `git rev-parse --show-toplevel`. Worktrees are si
 
 ### Phase 3: Write Prompt Files + Launch
 
-Both Claude Code and Codex support initial prompts via file convention. Write the prompt files before launching `dev 2` — each tool picks up its file at startup.
+Both Claude Code and Codex support initial prompts via file convention. Write both prompt files to the **Windows worktree root** — `dev` handles copying the Codex prompt to WSL internally.
 
-1. **Write the Claude prompt file** to the worktree root:
-
-   ```bash
-   cat > "<worktree_absolute_path>/.claude-init-prompt" << 'INIT_PROMPT_EOF'
-   <priming prompt content — see Claude template below>
-   INIT_PROMPT_EOF
-   ```
-
-2. **Write the Codex prompt file** to the WSL worktree:
-
-   Derive the WSL path: `/home/<wsl_user>/projects/quinlan-ard-{N}` (resolve `<wsl_user>` via `wsl -d Ubuntu -e whoami`).
-
-   Always `mkdir -p` the WSL path before writing — the directory may not exist yet if this is the first session. `dev` handles the full git worktree setup later, but the prompt file just needs the directory to exist.
-
-   ```bash
-   wsl -d Ubuntu -e mkdir -p '<wsl_worktree_path>'
-   wsl -d Ubuntu -e bash -c "cat > '<wsl_worktree_path>/.codex-init-prompt' << 'INIT_PROMPT_EOF'
-   <priming prompt content — see Codex template below>
-   INIT_PROMPT_EOF"
-   ```
-
-3. **Spawn a new tab** in the worktree directory:
+1. **Write `.claude-init-prompt`** to the worktree root (Claude template below)
+2. **Write `.codex-init-prompt`** to the worktree root (Codex template below)
+3. **Spawn a new WezTerm tab:**
 
    ```bash
    pane_id=$(wezterm cli spawn --cwd "<worktree_absolute_path>")
    ```
-
-   If spawn fails (no WezTerm window, permission error), clean up prompt files and report clearly.
 
 4. **Wait for shell init, then launch dev layout:**
 
@@ -119,7 +98,7 @@ Both Claude Code and Codex support initial prompts via file convention. Write th
    wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev\n'
    ```
 
-   `dev` handles the full layout: splits into 2 panes (Claude Code | Codex), mirrors the WSL worktree, and starts both tools. `cc` picks up `.claude-init-prompt`; the codex launch command picks up `.codex-init-prompt`. Both launch directly into the priming task.
+   `dev` handles the full layout: splits into 2 panes (Claude Code | Codex), copies `.codex-init-prompt` from Windows to WSL, mirrors the WSL worktree, and starts both tools. `cc` picks up `.claude-init-prompt`; the codex launch command picks up `.codex-init-prompt`. Both launch directly into the priming task.
 
 #### Claude Priming Prompt Template
 
@@ -180,13 +159,13 @@ Include any warnings or errors encountered during processing.
 | Situation | Handling |
 |-----------|----------|
 | Worktree exists, different branch | Warn with current vs expected branch. Ask: reuse, delete and recreate, or skip |
-| WezTerm not running | Detect spawn failure, clean up prompt file, suggest opening WezTerm first |
+| WezTerm not running | Detect spawn failure, suggest opening WezTerm first |
 | Linear MCP unavailable | Fall back to manual input — ask Timon for branch name and ticket title |
 | Ticket already Done | Warn and ask "This ticket is marked Done. Start a session anyway?" |
 | No `gitBranchName` from Linear | Derive branch name: `tvanrensburg/ard-{N}-{slugified-title}` |
 | Multiple tickets | Process sequentially. Each gets its own worktree and tab. Report all at end |
 | Branch exists but no worktree | Use `git worktree add` without `-b` flag |
-| Spawn succeeds but `dev 2` fails | Prompt file remains; next manual `cc` in that worktree picks it up |
+| Spawn succeeds but `dev` fails | Prompt files remain; next manual `cc`/`dev` in that worktree picks them up |
 
 ## What This Skill Does NOT Do
 
