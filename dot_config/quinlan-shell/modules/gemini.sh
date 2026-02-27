@@ -24,5 +24,5 @@ g() {
         return 1
     fi
 
-    COMSPEC="$_QUINLAN_PWSH_PATH" gemini "$@"
+    COMSPEC="$_QUINLAN_PWSH_PATH" gemini --yolo "$@"
 }
