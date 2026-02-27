@@ -95,13 +95,14 @@ Both Claude Code and Codex support initial prompts via file convention. Write th
 
    Derive the WSL path: `/home/<wsl_user>/projects/quinlan-ard-{N}` (resolve `<wsl_user>` via `wsl -d Ubuntu -e whoami`).
 
+   Always `mkdir -p` the WSL path before writing — the directory may not exist yet if this is the first session. `dev` handles the full git worktree setup later, but the prompt file just needs the directory to exist.
+
    ```bash
+   wsl -d Ubuntu -e mkdir -p '<wsl_worktree_path>'
    wsl -d Ubuntu -e bash -c "cat > '<wsl_worktree_path>/.codex-init-prompt' << 'INIT_PROMPT_EOF'
    <priming prompt content — see Codex template below>
    INIT_PROMPT_EOF"
    ```
-
-   If the WSL worktree doesn't exist yet (first time), skip the Codex prompt — `dev 2` will create it, and Codex launches without priming.
 
 3. **Spawn a new tab** in the worktree directory:
 
