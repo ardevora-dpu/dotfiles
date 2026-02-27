@@ -178,9 +178,9 @@ Wait for Timon's response. Handle:
 
 ## Phase 5: Execute
 
-### 5.1 Append to CHANGELOG.json
+### 5.1 Write changelog fragment
 
-Read `CHANGELOG.json`, append the new entry to the `entries` array, and write it back.
+Write the entry as an individual fragment file at `changelog/{PR_NUMBER}.json`.
 
 **Entry structure:**
 
@@ -228,7 +228,7 @@ For technical-only PRs (no highlight):
 ### 5.2 Commit the changelog
 
 ```bash
-git add CHANGELOG.json
+git add changelog/$PR_NUMBER.json
 git commit -m "changelog: PR #$PR_NUMBER - $HEADLINE"
 git push origin HEAD
 ```
