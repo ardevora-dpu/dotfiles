@@ -11,6 +11,11 @@
 
 _QUINLAN_PWSH_PATH="C:/Program Files/PowerShell/7/pwsh.exe"
 
+# Export globally so bare `gemini` also uses PowerShell 7.
+if [[ -x "$_QUINLAN_PWSH_PATH" ]]; then
+    export COMSPEC="$_QUINLAN_PWSH_PATH"
+fi
+
 g() {
     if [[ ! -x "$_QUINLAN_PWSH_PATH" ]]; then
         echo "[gemini] PowerShell 7 not found: $_QUINLAN_PWSH_PATH" >&2
@@ -24,5 +29,5 @@ g() {
         return 1
     fi
 
-    COMSPEC="$_QUINLAN_PWSH_PATH" gemini --yolo "$@"
+    COMSPEC="$_QUINLAN_PWSH_PATH" gemini --approval-mode=plan "$@"
 }
