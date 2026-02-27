@@ -401,8 +401,11 @@ dev() {
     # dev handles the cross-boundary copy so callers don't need WSL paths.
     local win_codex_prompt="$main_repo/.codex-init-prompt"
     if [[ -f "$win_codex_prompt" ]]; then
-        _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"
-        rm -f "$win_codex_prompt"
+        if _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"; then
+            rm -f "$win_codex_prompt"
+        else
+            echo "[codex-wsl] Failed to copy Codex prompt to WSL; keeping $win_codex_prompt" >&2
+        fi
     fi
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
