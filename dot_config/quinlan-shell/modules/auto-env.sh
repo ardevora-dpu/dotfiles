@@ -15,6 +15,13 @@ _quinlan_auto_env() {
     done
 }
 
+# Tell WezTerm the shell's real CWD via OSC 7. Without this, WezTerm
+# walks the process tree and may find pyright's node.exe (CWD dist/dist/),
+# causing tab titles to show "dist" and new tabs to open in the wrong dir.
+_quinlan_osc7_cwd() {
+    printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"
+}
+
 if [[ "${PROMPT_COMMAND:-}" != *"_quinlan_auto_env"* ]]; then
-    PROMPT_COMMAND="_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    PROMPT_COMMAND="_quinlan_osc7_cwd;_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi
