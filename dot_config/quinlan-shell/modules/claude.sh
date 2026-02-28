@@ -7,7 +7,10 @@
 # WezTerm text injection.
 
 _quinlan_run_claude() {
-    claude --dangerously-skip-permissions "$@"
+    # Cache Unix-format PATH for bash subprocess restoration.
+    # Node.js converts PATH to Windows format; the shell snapshot replays it.
+    # .bash_profile's DEBUG trap uses this to restore without calling cygpath.
+    _QUINLAN_UNIX_PATH="$PATH" claude --dangerously-skip-permissions "$@"
 }
 
 cc() {
