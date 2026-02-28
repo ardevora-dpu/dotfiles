@@ -19,7 +19,11 @@ _quinlan_auto_env() {
 # walks the process tree and may find pyright's node.exe (CWD dist/dist/),
 # causing tab titles to show "dist" and new tabs to open in the wrong dir.
 _quinlan_osc7_cwd() {
-    printf '\e]7;file://%s%s\e\\' "$HOSTNAME" "$PWD"
+    # cygpath -m converts POSIX paths (/e/projects/...) to Windows mixed-mode
+    # (E:/projects/...) so WezTerm can parse the drive letter correctly.
+    # Without this, WezTerm sees /e/... which isn't a valid Windows path,
+    # causing new tabs to fall back to ~ or produce doubled paths (/c/c/...).
+    printf '\e]7;file:///%s\e\\' "$(cygpath -m "$PWD")"
 }
 
 if [[ "${PROMPT_COMMAND:-}" != *"_quinlan_auto_env"* ]]; then
