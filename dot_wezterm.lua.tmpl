@@ -37,7 +37,7 @@ config.default_prog = { 'C:/Program Files/Git/bin/bash.exe', '--login', '-i' }
 -- Mux server runs as a separate background process; GUI is a thin rendering client.
 -- If the GUI crashes, relaunch WezTerm to reconnect — all tabs/panes/shells survive.
 config.unix_domains = {
-  { name = 'unix' },
+  { name = 'unix', skip_permissions_check = true },
 }
 config.default_gui_startup_args = { 'connect', 'unix' }
 
