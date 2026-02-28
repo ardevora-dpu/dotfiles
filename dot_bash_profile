@@ -1,17 +1,8 @@
 # Quinlan Git Bash profile (Windows native)
 # Managed by chezmoi - edit in the Ardevora dotfiles repository.
 
-# Tell Claude Code where to find bash for shell operations on Git Bash.
-_quinlan_uname="$(uname -s 2>/dev/null || true)"
-case "$_quinlan_uname" in
-    MINGW*|MSYS*|CYGWIN*)
-        export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
-        ;;
-    *)
-        unset CLAUDE_CODE_GIT_BASH_PATH
-        ;;
-esac
-unset _quinlan_uname
+# Tell Claude Code where to find bash for shell operations
+export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
 
 # Workspace root for project navigation (p, dev functions)
 # Derived from ~/.quinlan-repo (set by /update) — parent directory of the repo
@@ -19,6 +10,33 @@ if [[ -f ~/.quinlan-repo ]]; then
     WORKSPACE_ROOT="$(dirname "$(cat ~/.quinlan-repo)")"
     export WORKSPACE_ROOT
 fi
+
+# Normalise Windows PATH to MSYS paths when needed.
+if [[ "$PATH" == *";"* ]] && [[ -x /usr/bin/cygpath ]]; then
+    PATH="$(/usr/bin/cygpath -u -p "$PATH")"
+fi
+
+case ":$PATH:" in *":/usr/bin:"*) ;; *) PATH="/usr/bin:$PATH" ;; esac
+case ":$PATH:" in *":/mingw64/bin:"*) ;; *) PATH="/mingw64/bin:$PATH" ;; esac
+export PATH
+
+# Fix Claude Code's Windows-format PATH in bash tool subprocesses.
+# Claude's shell snapshot overwrites PATH with Windows format (C:\...;C:\...)
+# AFTER login init files run. This DEBUG trap fires before the next command
+# and restores from ORIGINAL_PATH (set by /etc/profile in Unix format).
+# Fallback: cygpath at absolute path (works even with broken PATH).
+_quinlan_fix_path() {
+    if [[ "$PATH" == *";"* ]]; then
+        if [[ -n "${ORIGINAL_PATH:-}" ]]; then
+            PATH="$ORIGINAL_PATH"
+        elif [[ -x /usr/bin/cygpath ]]; then
+            PATH="$(/usr/bin/cygpath -u -p "$PATH")"
+        fi
+        export PATH
+        trap - DEBUG
+    fi
+}
+trap '_quinlan_fix_path' DEBUG
 
 # Source .bashrc for interactive shell customisations
 if [ -f ~/.bashrc ]; then
