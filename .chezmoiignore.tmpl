@@ -2,6 +2,8 @@
 {{- if ne .chezmoi.os "windows" }}
 run_once_compile-helpers.ps1
 compile-helpers.ps1
+.claude/settings.json.ps1
+dot_claude/modify_settings.json.ps1
 {{- end }}
 
 {{- /* Timon-only payload: do not deploy for other users (e.g. Jeremy) */ -}}
