@@ -33,13 +33,16 @@ config.set_environment_variables = {
 
 config.default_prog = { 'C:/Program Files/Git/bin/bash.exe', '--login', '-i' }
 
--- Multiplexer: persistent sessions via unix domain (AF_UNIX sockets on Windows)
--- Mux server runs as a separate background process; GUI is a thin rendering client.
--- If the GUI crashes, relaunch WezTerm to reconnect — all tabs/panes/shells survive.
-config.unix_domains = {
-  { name = 'unix', skip_permissions_check = true },
-}
-config.default_gui_startup_args = { 'connect', 'unix' }
+-- Multiplexer: disabled until WezTerm nightly (with termsync/mux fix) is validated.
+-- Stable 20240203 has broken synchronized output through mux (wezterm#4607),
+-- which garbles Claude Code's Ink-based TUI rendering.
+-- Plan: upgrade to nightly, re-enable mux, canary on Timon for 1-2 weeks,
+-- then promote to Jeremy. Tracked in ARD-452.
+--
+-- config.unix_domains = {
+--   { name = 'unix', skip_permissions_check = true },
+-- }
+-- config.default_gui_startup_args = { 'connect', 'unix' }
 
 -- Kitty keyboard disabled globally — Claude Code works fine without it,
 -- and it caused Codex/WSL incompatibility that required mux-heavy detection logic
