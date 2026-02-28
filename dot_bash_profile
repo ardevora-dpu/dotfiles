@@ -21,21 +21,22 @@ case ":$PATH:" in *":/mingw64/bin:"*) ;; *) PATH="/mingw64/bin:$PATH" ;; esac
 export PATH
 
 # Fix Claude Code's Windows-format PATH in bash tool subprocesses.
-# Node.js converts PATH to Windows format; the shell snapshot replays it after
-# /etc/profile and BASH_ENV have already converted. The DEBUG trap fires after
-# the snapshot loads and restores Unix-format PATH before the command runs.
-# Gated on _QUINLAN_UNIX_PATH (set by cc launcher) so interactive shells are
-# unaffected.
-if [[ -n "${_QUINLAN_UNIX_PATH:-}" ]]; then
-    _quinlan_fix_path() {
-        if [[ "$PATH" == *";"* ]]; then
-            PATH="$_QUINLAN_UNIX_PATH"
-            export PATH
-            trap - DEBUG
+# Claude's shell snapshot overwrites PATH with Windows format (C:\...;C:\...)
+# AFTER login init files run. This DEBUG trap fires before the next command
+# and restores from ORIGINAL_PATH (set by /etc/profile in Unix format).
+# Fallback: cygpath at absolute path (works even with broken PATH).
+_quinlan_fix_path() {
+    if [[ "$PATH" == *";"* ]]; then
+        if [[ -n "${ORIGINAL_PATH:-}" ]]; then
+            PATH="$ORIGINAL_PATH"
+        elif [[ -x /usr/bin/cygpath ]]; then
+            PATH="$(/usr/bin/cygpath -u -p "$PATH")"
         fi
-    }
-    trap '_quinlan_fix_path' DEBUG
-fi
+        export PATH
+        trap - DEBUG
+    fi
+}
+trap '_quinlan_fix_path' DEBUG
 
 # Source .bashrc for interactive shell customisations
 if [ -f ~/.bashrc ]; then
