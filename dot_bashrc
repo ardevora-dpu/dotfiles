@@ -1,7 +1,16 @@
 # Quinlan Git Bash profile (Windows native)
 # Managed by chezmoi. Do not edit ~/.bashrc directly.
 
-export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
+_quinlan_uname="$(uname -s 2>/dev/null || true)"
+case "$_quinlan_uname" in
+    MINGW*|MSYS*|CYGWIN*)
+        export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
+        ;;
+    *)
+        unset CLAUDE_CODE_GIT_BASH_PATH
+        ;;
+esac
+unset _quinlan_uname
 
 _QUINLAN_MODULE_ROOT="$HOME/.config/quinlan-shell/modules"
 
