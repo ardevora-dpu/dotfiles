@@ -12,6 +12,10 @@ case "$_quinlan_uname" in
 esac
 unset _quinlan_uname
 
+# BASH_ENV: sourced by bash for non-interactive shells (Claude Code sandbox).
+# Also set in ~/.claude/settings.json env block for launch-context independence.
+export BASH_ENV="$HOME/.config/quinlan-shell/bash-env.sh"
+
 _QUINLAN_MODULE_ROOT="$HOME/.config/quinlan-shell/modules"
 
 _quinlan_source_required_module() {
