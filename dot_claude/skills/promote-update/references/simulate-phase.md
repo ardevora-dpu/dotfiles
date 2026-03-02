@@ -1,4 +1,4 @@
-# Simulate Phase
+# Simulate + Classify Phase
 
 ## Preflight
 
@@ -22,7 +22,7 @@ ARTIFACT_DIR="workspaces/timon/promotion-artifacts/${RUN_ID}"
 mkdir -p "$ARTIFACT_DIR"
 ```
 
-## Run faithful simulation
+## Run faithful simulation (deterministic)
 
 ```bash
 SIM_ARTIFACT_ROOT="$ARTIFACT_DIR/simulation"
@@ -38,11 +38,25 @@ cp "$REPORT_PATH" "$ARTIFACT_DIR/simulation-report.json"
 
 Note: Update Guard creates a per-run subdirectory under `--artifacts-root`; do not assume the report path is directly `$SIM_ARTIFACT_ROOT/simulation-report.json`.
 
-## Present verdict
+## Build promotion plan (deterministic)
 
-Read `simulation-report.json` and summarise:
-- `safe`
-- discrepancy groups (`code`, `severity`, `count`, top samples)
-- promotion candidates count (`promotion_report.shared_runtime`, `promotion_report.platform`)
+```bash
+uv run python -m research.update_guard.cli promote plan --simulation-report "$ARTIFACT_DIR/simulation-report.json" --artifacts-root "$ARTIFACT_DIR" | tee "$ARTIFACT_DIR/promote-plan.log"
+```
 
-If `safe=false`, continue to Build Plan only for diagnosis and stop before Stage PR unless Timon explicitly asks to proceed.
+Interpret exit code from `promote plan`:
+- `0`: simulation safe and promotable paths exist (`status=ready`)
+- `1`: simulation safe but nothing to promote (`status=empty`)
+- `2`: simulation unsafe (`status=unsafe`)
+
+## Present phase verdict
+
+Read `simulation-report.json` and `promotion-plan.json` and summarise:
+- simulation `safe` + discrepancy groups (`code`, `severity`, `count`, top samples)
+- promotion buckets:
+  - `promotable_shared`
+  - `promotable_platform`
+  - `ambiguous`
+  - `non_promotable_user_or_unknown`
+
+If status is `unsafe` or `empty`, stop before Stage PR unless Timon explicitly asks to continue for diagnosis-only output.

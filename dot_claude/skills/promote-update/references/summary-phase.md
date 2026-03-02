@@ -1,11 +1,17 @@
-# Summary + Merge Gate Phase
+# Validate + Merge Gate Phase
+
+If no PR was staged (dry-run, unsafe, or empty plan), publish summary and stop.
+
+If PR exists, run:
+- `references/validate-phase.md`
+- `references/parity-check-phase.md`
 
 ## Build structured summary
 
 Summarise from artefacts:
 
 - simulation verdict and key discrepancies
-- selected promoted files
+- selected promoted files (`promotion-plan.json:selected_paths`)
 - excluded ambiguous files + reasons
 - readiness result
 - parity result
@@ -27,7 +33,7 @@ Use `AskUserQuestion` with three options:
 
 Never merge without this explicit decision.
 
-## If approved to merge
+## If approved to merge (PR exists only)
 
 ```bash
 gh pr merge <PR_NUMBER> --squash
