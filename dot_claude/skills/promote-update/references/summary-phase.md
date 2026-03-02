@@ -11,7 +11,7 @@ If PR exists, run:
 Summarise from artefacts:
 
 - simulation verdict and key discrepancies
-- selected promoted files (`promotion-plan.json:selected_paths`)
+- selected promoted files (`promotion-plan.json:selected_paths_final`)
 - excluded ambiguous files + reasons
 - readiness result
 - parity result
@@ -60,6 +60,6 @@ Then draft a Jeremy-facing note based on what was promoted:
 ## Error recovery / rollback
 
 - Simulation unsafe: stop before Stage PR, publish discrepancy summary, and keep artefacts for diagnosis.
-- Wrong files staged on promotion branch: `git checkout origin/main && git branch -D timon/pre-update-promotion` then restart from Build Plan.
+- Wrong files staged on promotion branch: `git checkout origin/main && git branch -D timon/pre-update-promotion` then restart from Simulate + Classify.
 - Validation failure after PR update: keep PR open, post failed checks in summary, and defer merge.
 - Merge rejected or cancelled: leave PR open unless Timon chooses abort; on abort, close PR and delete remote branch.

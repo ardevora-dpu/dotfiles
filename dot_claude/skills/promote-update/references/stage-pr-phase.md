@@ -13,8 +13,9 @@ Stage selected promotion files into a single idempotent branch/PR.
    - `git show origin/main:<path>`
    - `git show origin/jeremy/checkpoints/live:<path>`
 3. Ask Timon to choose `include`, `exclude`, or `defer`.
-4. Record triage decisions in `promotion-plan.json`.
-5. Compute final `selected_paths` = existing `selected_paths` + ambiguous items marked `include`.
+4. Record triage decisions in `promotion-plan.json` under `triage`.
+5. Compute `selected_paths_final` = `selected_paths_initial` + ambiguous items marked `include`.
+6. For compatibility, set `selected_paths` = `selected_paths_final`.
 
 ## Branch and PR strategy
 
@@ -24,20 +25,20 @@ Stage selected promotion files into a single idempotent branch/PR.
 
 ## Stage selected paths
 
-1. Read `selected_paths` from `promotion-plan.json`.
-2. If `selected_paths` is empty after triage, skip branch/PR staging and report "nothing selected for promotion".
+1. Read `selected_paths_final` from `promotion-plan.json`.
+2. If `selected_paths_final` is empty after triage, skip branch/PR staging and report "nothing selected for promotion".
 3. Resolve checkpoint ref from `promotion-plan.json` (`checkpoint_ref` field).
 4. Reset/switch promotion branch from `origin/main`:
 ```bash
 git fetch origin --prune
 git checkout -B timon/pre-update-promotion origin/main
 ```
-5. For each selected path:
+5. For each selected path in `selected_paths_final`:
 - If path exists in checkpoint ref: `git checkout <checkpoint_ref> -- <path>`
 - If path deleted in checkpoint ref: remove locally and stage deletion.
 6. Stage and commit:
 ```bash
-git add -A -- <selected_paths>
+git add -A -- <selected_paths_final>
 git commit -m "ARD-451: pre-/update promotion from Jeremy checkpoint" || true
 ```
 7. Push:

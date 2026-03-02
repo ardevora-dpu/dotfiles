@@ -10,6 +10,11 @@ Run a safe pre-`/update` promotion for Jeremy runtime changes using a hybrid mod
 - Deterministic classification in `update-guard promote plan`
 - Interactive decisions in this skill (triage + merge gate)
 
+## Optional Harness Smoke
+
+When Timon asks to "test the harness", run `references/harness-smoke-phase.md` first.
+This is agent-run and dry-run only (no PR/merge side effects).
+
 ## Phase Sequence
 
 | Phase | Name | Reference | Always run |
@@ -25,6 +30,7 @@ Load one phase reference at a time.
 - Never auto-merge. Use `AskUserQuestion` for explicit approval.
 - Idempotent runs: reuse/update existing promotion PR if one exists.
 - Deterministic classification lives in `update-guard promote plan` (no shell path bucketing in markdown).
+- Plan selection contract: CLI writes `selected_paths_initial`; interactive triage writes `selected_paths_final`.
 - Persist machine-readable artefacts under `workspaces/timon/promotion-artifacts/<run-id>/`:
   - `simulation-report.json`
   - `promotion-plan.json`
