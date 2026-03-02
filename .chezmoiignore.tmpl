@@ -4,10 +4,19 @@ run_once_compile-helpers.ps1
 compile-helpers.ps1
 .claude/settings.json.ps1
 dot_claude/modify_settings.json.ps1
+dot_claude/statusline-command.sh
 {{- end }}
 
-{{- /* Timon-only payload: do not deploy for other users (e.g. Jeremy) */ -}}
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
+{{- $isJeremy := or (eq .chezmoi.username "jeremy") (eq .chezmoi.username "jlang") (eq .chezmoi.username "AzureAD\\JeremyLang") -}}
+
+{{- /* Claude user settings are only managed for Timon and Jeremy profiles. */ -}}
+{{- if and (not $isTimon) (not $isJeremy) }}
+dot_claude/modify_settings.json.ps1
+dot_claude/statusline-command.sh
+{{- end }}
+
+{{- /* Timon-only payload: do not deploy for other users (including Jeremy). */ -}}
 {{- if not $isTimon }}
 dot_claude/CLAUDE.md
 dot_claude/skills/**
