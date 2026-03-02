@@ -17,7 +17,7 @@ This skill orchestrates existing tooling interactively. Do not introduce a new P
 | 1 | Preflight | `references/simulate-phase.md` (preflight section) | Yes |
 | 2 | Simulate | `references/simulate-phase.md` | Yes |
 | 3 | Build Plan | `references/build-plan-phase.md` | Yes |
-| 4 | Stage PR | `references/stage-pr-phase.md` | If promotable paths > 0 |
+| 4 | Stage PR | `references/stage-pr-phase.md` | If promotable paths > 0 and not dry-run |
 | 5 | Validate | `references/validate-phase.md` | If PR staged |
 | 6 | Parity Check | `references/parity-check-phase.md` | If PR staged |
 | 7 | Summary + Merge Gate | `references/summary-phase.md` | Yes |
@@ -31,6 +31,7 @@ Load one phase reference at a time. Keep context lean.
 - Preserve user-managed state boundaries; do not promote bisync-managed paths.
 - Persist machine-readable artefacts under `workspaces/timon/promotion-artifacts/<run-id>/`.
 - Clean up temporary worktrees/files on both success and failure.
+- Support dry-run on request: run through Build Plan and Summary without branch, PR, or merge side effects.
 
 ## Inputs
 

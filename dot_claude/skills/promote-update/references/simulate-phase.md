@@ -10,7 +10,12 @@ git status --porcelain --untracked-files=no
 ```bash
 command -v uv gh jq
 ```
-3. Create run artefact directory:
+3. Confirm Jeremy checkpoint ref is available:
+```bash
+git fetch origin --prune
+git rev-parse --verify origin/jeremy/checkpoints/live
+```
+4. Create run artefact directory:
 ```bash
 RUN_ID=$(date -u +%Y%m%d-%H%M%S)
 ARTIFACT_DIR="workspaces/timon/promotion-artifacts/${RUN_ID}"
@@ -20,18 +25,18 @@ mkdir -p "$ARTIFACT_DIR"
 ## Run faithful simulation
 
 ```bash
-uv run python -m research.update_guard.cli simulate --user jeremy --strict | tee "$ARTIFACT_DIR/simulate.log"
+SIM_ARTIFACT_ROOT="$ARTIFACT_DIR/simulation"
+uv run python -m research.update_guard.cli --user jeremy simulate --strict --artifacts-root "$SIM_ARTIFACT_ROOT" | tee "$ARTIFACT_DIR/simulate.log"
 ```
 
-Parse the report path from CLI output marker:
+Locate the simulation report written under `--artifacts-root`:
 ```bash
-REPORT_PATH=$(awk -F': ' '/\[update-guard\] simulation report:/ {print $2}' "$ARTIFACT_DIR/simulate.log" | tail -1)
-```
-
-Copy report into run artefacts:
-```bash
+REPORT_PATH=$(find "$SIM_ARTIFACT_ROOT" -type f -name simulation-report.json | sort | tail -1)
+[ -n "$REPORT_PATH" ] || { echo "simulation-report.json not found"; exit 1; }
 cp "$REPORT_PATH" "$ARTIFACT_DIR/simulation-report.json"
 ```
+
+Note: Update Guard creates a per-run subdirectory under `--artifacts-root`; do not assume the report path is directly `$SIM_ARTIFACT_ROOT/simulation-report.json`.
 
 ## Present verdict
 

@@ -26,8 +26,14 @@ git commit -m "ARD-451: pre-/update promotion from Jeremy checkpoint" || true
 ```
 5. Push:
 ```bash
-git push -u origin timon/pre-update-promotion
+if git ls-remote --exit-code --heads origin timon/pre-update-promotion >/dev/null; then
+  git push --force-with-lease -u origin timon/pre-update-promotion
+else
+  git push -u origin timon/pre-update-promotion
+fi
 ```
+
+Use `--force-with-lease` only when updating the existing promotion branch to avoid overwriting unexpected remote changes.
 
 If commit is a no-op, do not create a new PR comment; report that main is already converged.
 
