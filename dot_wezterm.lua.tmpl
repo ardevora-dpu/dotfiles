@@ -102,17 +102,31 @@ local function hash_to_colour(str)
   return tab_colours[(hash % #tab_colours) + 1]
 end
 
--- Bell handler: track which tabs have unread bells
+-- Bell handler: track which tabs have unread bells.
+-- Only suppress when the window has OS focus AND the tab is active — otherwise
+-- the bell would be silently dropped when the user is in a different WezTerm window.
 wezterm.on('bell', function(window, pane)
   local tab = pane:tab()
   if not tab then return end
-  -- Skip if this tab is already active (user is looking at it)
-  for _, t in ipairs(window:mux_window():tabs_with_info()) do
-    if t.tab:tab_id() == tab:tab_id() and t.is_active then
-      return
+  if window:is_focused() then
+    for _, t in ipairs(window:mux_window():tabs_with_info()) do
+      if t.tab:tab_id() == tab:tab_id() and t.is_active then
+        return
+      end
     end
   end
   wezterm.GLOBAL.bell_tabs[tostring(tab:tab_id())] = true
+end)
+
+-- Clear bell when the user actually sees the tab (window focused + tab active).
+-- Separated from format-tab-title because that callback lacks a window object
+-- and can't distinguish OS focus from per-window tab activation.
+wezterm.on('update-status', function(window, pane)
+  if not window:is_focused() then return end
+  local tab = window:active_tab()
+  if tab then
+    wezterm.GLOBAL.bell_tabs[tostring(tab:tab_id())] = nil
+  end
 end)
 
 -- Format tab title with project-based colours
@@ -154,12 +168,6 @@ wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_wid
 
   local tab_id = tostring(tab.tab_id)
   local has_bell = wezterm.GLOBAL.bell_tabs[tab_id]
-
-  -- Clear bell state when tab is active (user has seen it)
-  if tab.is_active and has_bell then
-    wezterm.GLOBAL.bell_tabs[tab_id] = nil
-    has_bell = false
-  end
 
   local bg_colour = hash_to_colour(colour_key)
   local fg_colour = '#ebdbb2'  -- Gruvbox light foreground
