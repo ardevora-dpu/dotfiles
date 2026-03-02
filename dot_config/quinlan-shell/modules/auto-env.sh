@@ -26,6 +26,14 @@ _quinlan_osc7_cwd() {
     printf '\e]7;file:///%s\e\\' "$(cygpath -m "$PWD")"
 }
 
+# Disable focus reporting (CSI ?1004) to prevent bell storms.
+# Claude Code enables focus reporting via ANSI sequences but doesn't always
+# clean up on exit (#17010). WezTerm then sends focus-in/out events that some
+# programs interpret as input, causing spurious BEL characters.
+_quinlan_reset_focus_reporting() {
+    printf '\e[?1004l'
+}
+
 if [[ "${PROMPT_COMMAND:-}" != *"_quinlan_auto_env"* ]]; then
-    PROMPT_COMMAND="_quinlan_osc7_cwd;_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    PROMPT_COMMAND="_quinlan_reset_focus_reporting;_quinlan_osc7_cwd;_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi

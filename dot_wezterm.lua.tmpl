@@ -1,6 +1,7 @@
 local wezterm = require 'wezterm'
 local act = wezterm.action
 local config = wezterm.config_builder()
+wezterm.GLOBAL.bell_tabs = wezterm.GLOBAL.bell_tabs or {}
 
 -- Dynamic home path - works on any Windows machine
 local home = os.getenv("USERPROFILE"):gsub("\\", "/")
@@ -101,6 +102,19 @@ local function hash_to_colour(str)
   return tab_colours[(hash % #tab_colours) + 1]
 end
 
+-- Bell handler: track which tabs have unread bells
+wezterm.on('bell', function(window, pane)
+  local tab = pane:tab()
+  if not tab then return end
+  -- Skip if this tab is already active (user is looking at it)
+  for _, t in ipairs(window:mux_window():tabs_with_info()) do
+    if t.tab:tab_id() == tab:tab_id() and t.is_active then
+      return
+    end
+  end
+  wezterm.GLOBAL.bell_tabs[tostring(tab:tab_id())] = true
+end)
+
 -- Format tab title with project-based colours
 wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_width)
   -- Honour explicitly set tab names first (for example from `dev`).
@@ -138,18 +152,34 @@ wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_wid
     display_name = display_name:sub(1, max_width - 5) .. '…'
   end
 
+  local tab_id = tostring(tab.tab_id)
+  local has_bell = wezterm.GLOBAL.bell_tabs[tab_id]
+
+  -- Clear bell state when tab is active (user has seen it)
+  if tab.is_active and has_bell then
+    wezterm.GLOBAL.bell_tabs[tab_id] = nil
+    has_bell = false
+  end
+
   local bg_colour = hash_to_colour(colour_key)
   local fg_colour = '#ebdbb2'  -- Gruvbox light foreground
 
-  -- Dim inactive tabs
   if not tab.is_active then
-    fg_colour = '#928374'  -- Gruvbox grey
-    bg_colour = '#3c3836'  -- Gruvbox dark background
+    if has_bell then
+      -- Bell tabs: Gruvbox red background, light foreground
+      bg_colour = '#cc241d'
+      fg_colour = '#ebdbb2'
+    else
+      -- Normal inactive tabs
+      fg_colour = '#928374'  -- Gruvbox grey
+      bg_colour = '#3c3836'  -- Gruvbox dark background
+    end
   end
 
   -- Add tab index for quick navigation
   local index = tab.tab_index + 1
-  local title = string.format(' %d:%s ', index, display_name)
+  local bell_icon = has_bell and (wezterm.nerdfonts.md_bell .. ' ') or ''
+  local title = string.format(' %s%d:%s ', bell_icon, index, display_name)
 
   return {
     { Background = { Color = bg_colour } },
@@ -167,6 +197,9 @@ config.scrollback_lines = 15000
 
 -- Suppress notifications when focused on the source pane (Claude Code uses OSC 777)
 config.notification_handling = "SuppressFromFocusedPane"
+
+-- Bell: visual only (tab turns red), no audible beep
+config.audible_bell = "Disabled"
 
 -- Dim inactive panes (visual feedback for which pane has focus)
 config.inactive_pane_hsb = {
