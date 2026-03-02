@@ -30,10 +30,32 @@ Flexible input: full identifiers (`ARD-383`), bare numbers (`383`), or mixed. Sp
 - Linear MCP available (for ticket resolution and status updates)
 - Git access to quinlan repo (current session must be in a quinlan worktree)
 - `dev` function available in shell (from quinlan-shell modules — launches Claude Code + Codex layout)
+- Run this skill from **Windows Git Bash** in a Windows worktree path (`E:/...`), not from WSL or `/mnt/...`
 
 ## Workflow
 
 Process each ticket through all phases before moving to the next.
+
+### Phase 0: Platform + Path Preflight (hard guard)
+
+Before resolving tickets, validate the runtime context:
+
+```bash
+UNAME_S="$(uname -s)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+```
+
+Fail fast and stop if either is true:
+
+- Not Windows Git Bash (`$UNAME_S` is not `MINGW*` or `MSYS*`)
+- Repo root is a Linux path (`/home/...` or `/mnt/...`)
+
+When this guard fails, print a clear instruction and do not continue:
+
+```text
+start-session must run from Windows Git Bash in a Windows worktree path (for example E:/projects/main_workspace/quinlan-ard-483).
+Do not run start-session from WSL or /mnt paths.
+```
 
 ### Phase 1: Parse and Resolve Tickets
 
@@ -99,7 +121,7 @@ Both Claude Code and Codex support initial prompts via file convention. Write bo
    pane_id=$(wezterm cli spawn --cwd "$WORKTREE_PATH/workspaces/timon")
    ```
 
-4. **Wait for shell init, then launch dev layout.** The shell runs `auto-env.sh` on entry which may trigger `uv sync` — this takes several seconds. Wait long enough for the prompt to be ready:
+4. **Wait for shell init, then launch dev layout.** The shell runs `auto-env.sh` on entry which may trigger `uv sync`, and `dev` now performs a dotfiles sync gate unless you pass `--no-sync` — this can take several seconds. Wait long enough for the prompt to be ready:
 
    ```bash
    sleep 5
@@ -173,6 +195,7 @@ Include any warnings or errors encountered during processing.
 | No `gitBranchName` from Linear | Derive branch name: `tvanrensburg/ard-{N}-{slugified-title}` |
 | Multiple tickets | Process sequentially. Each gets its own worktree and tab. Report all at end |
 | Branch exists but no worktree | Use `git worktree add` without `-b` flag |
+| Session started from WSL or `/mnt/...` path | Hard-stop in Phase 0 and instruct rerun from Windows Git Bash with `E:/...` repo path |
 | Spawn succeeds but `dev` fails | Prompt files remain; next manual `cc`/`dev` in that worktree picks them up |
 
 ## What This Skill Does NOT Do

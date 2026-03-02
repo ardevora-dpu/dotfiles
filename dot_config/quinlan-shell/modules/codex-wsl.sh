@@ -66,6 +66,108 @@ _quinlan_wsl_context_path() {
     printf '%s/workspaces/timon' "$wsl_path"
 }
 
+_quinlan_tab_label_from_worktree() {
+    local win_dir="$1"
+    if [[ "$win_dir" == "quinlan" ]]; then
+        printf 'main'
+        return 0
+    fi
+
+    if [[ "$win_dir" == quinlan-* ]]; then
+        printf '%s' "${win_dir#quinlan-}"
+        return 0
+    fi
+
+    printf '%s' "$win_dir"
+}
+
+_quinlan_dotfiles_state_local() {
+    local repo="$1"
+    local head origin dirty
+
+    git -C "$repo" fetch origin >/dev/null 2>&1 || return 1
+    head="$(git -C "$repo" rev-parse HEAD 2>/dev/null)" || return 1
+    origin="$(git -C "$repo" rev-parse origin/main 2>/dev/null)" || return 1
+    dirty="$(git -C "$repo" status --porcelain | wc -l | tr -d '[:space:]')" || return 1
+
+    printf '%s|%s|%s' "$head" "$origin" "$dirty"
+}
+
+_quinlan_dotfiles_state_wsl() {
+    local repo="$1"
+    local state
+
+    state="$(_quinlan_wsl_bash "git -C '$repo' fetch origin >/dev/null 2>&1 && \
+        h=\$(git -C '$repo' rev-parse HEAD) && \
+        o=\$(git -C '$repo' rev-parse origin/main) && \
+        d=\$(git -C '$repo' status --porcelain | wc -l | tr -d '[:space:]') && \
+        printf '%s|%s|%s' \"\$h\" \"\$o\" \"\$d\"" 2>/dev/null)" || return 1
+    [[ -n "$state" ]] || return 1
+
+    printf '%s' "$state"
+}
+
+_quinlan_sync_dotfiles_if_needed() {
+    local local_repo="$HOME/.local/share/chezmoi"
+    local wsl_user wsl_repo
+    local local_state wsl_state
+    local local_head local_origin local_dirty
+    local wsl_head wsl_origin wsl_dirty
+    local needs_sync=0
+
+    _quinlan_require_command chezmoi || return 1
+    _quinlan_require_command git || return 1
+
+    if [[ ! -d "$local_repo/.git" ]]; then
+        echo "[codex-wsl] Missing Windows chezmoi repo: $local_repo" >&2
+        return 1
+    fi
+
+    wsl_user="$(_quinlan_wsl_user)" || return 1
+    wsl_repo="/home/$wsl_user/.local/share/chezmoi"
+    if ! _quinlan_wsl_bash "[ -d '$wsl_repo/.git' ]"; then
+        echo "[codex-wsl] Missing WSL chezmoi repo: $wsl_repo" >&2
+        return 1
+    fi
+
+    local_state="$(_quinlan_dotfiles_state_local "$local_repo")" || {
+        echo "[codex-wsl] Failed to read Windows dotfiles state." >&2
+        return 1
+    }
+    IFS='|' read -r local_head local_origin local_dirty <<< "$local_state"
+
+    wsl_state="$(_quinlan_dotfiles_state_wsl "$wsl_repo")" || {
+        echo "[codex-wsl] Failed to read WSL dotfiles state." >&2
+        return 1
+    }
+    IFS='|' read -r wsl_head wsl_origin wsl_dirty <<< "$wsl_state"
+
+    if [[ "$local_head" != "$local_origin" || "$local_dirty" != "0" ]]; then
+        needs_sync=1
+    fi
+    if [[ "$wsl_head" != "$wsl_origin" || "$wsl_dirty" != "0" ]]; then
+        needs_sync=1
+    fi
+
+    if (( needs_sync == 0 )); then
+        return 0
+    fi
+
+    echo "[codex-wsl] Dotfiles drift detected; syncing Windows and WSL..."
+    chezmoi update --force || {
+        echo "[codex-wsl] Windows chezmoi update failed. Use 'dev --no-sync' to bypass once." >&2
+        return 1
+    }
+    chezmoi apply --force || {
+        echo "[codex-wsl] Windows chezmoi apply failed. Use 'dev --no-sync' to bypass once." >&2
+        return 1
+    }
+    _quinlan_wsl_login_bash "chezmoi update --force && chezmoi apply --force" || {
+        echo "[codex-wsl] WSL chezmoi sync failed. Use 'dev --no-sync' to bypass once." >&2
+        return 1
+    }
+}
+
 # shellcheck disable=SC2120 # Default parameter is intentional — callers use the default
 _ensure_codex_snowflake_timeout() {
     local config="$HOME/.codex/config.toml"
@@ -370,7 +472,21 @@ dev() {
     _quinlan_require_command wezterm || return 1
     _quinlan_require_command wsl || return 1
 
+    local skip_sync=0
+    if (( $# > 0 )) && [[ "$1" == "--no-sync" ]]; then
+        skip_sync=1
+        shift
+    fi
+    if (( $# > 0 )); then
+        echo "[codex-wsl] Usage: dev [--no-sync]" >&2
+        return 1
+    fi
+
     local branch win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
+    if (( skip_sync == 0 )); then
+        _quinlan_sync_dotfiles_if_needed || return 1
+    fi
+
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
     if [[ -z "$branch" ]]; then
@@ -421,7 +537,10 @@ dev() {
     codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
 
     local right_pane
-    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "~")"
+    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "$wsl_context_path")"
+    local tab_label
+    tab_label="$(_quinlan_tab_label_from_worktree "$win_dir")"
+    wezterm cli set-tab-title --pane-id "$left_pane" "$tab_label" >/dev/null 2>&1 || true
 
     sleep 0.3
     wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
