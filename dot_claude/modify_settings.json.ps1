@@ -1,4 +1,7 @@
 # Ensure autoUpdatesChannel is "latest" for Timon.
 # Jeremy stays on stable (his machine doesn't use chezmoi).
 # Uses modify_ script so Claude Code's own writes to settings.json are preserved.
-[Console]::In.ReadToEnd() | uv run python -c "import json,sys; t=sys.stdin.read(); d=json.loads(t) if t.strip() else {}; d['autoUpdatesChannel']='latest'; json.dump(d,sys.stdout,indent=2); print()"
+[Console]::In.ReadToEnd() | uv run python -c "import json,sys; t=sys.stdin.read()
+try: d=json.loads(t)
+except (json.JSONDecodeError, ValueError): d={}
+d['autoUpdatesChannel']='latest'; json.dump(d,sys.stdout,indent=2); print()"
