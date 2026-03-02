@@ -103,19 +103,23 @@ end
 
 -- Format tab title with project-based colours
 wezterm.on('format-tab-title', function(tab, tabs, panes, config, hover, max_width)
-  local pane = tab.active_pane
-  local cwd = pane.current_working_dir
+  -- Honour explicitly set tab names first (for example from `dev`).
+  local dir_name = tab.tab_title
+  if not dir_name or dir_name == '' then
+    local pane = tab.active_pane
+    local cwd = pane.current_working_dir
 
-  -- Extract directory name from cwd
-  local dir_name = 'shell'
-  if cwd then
-    local path = cwd.file_path or tostring(cwd)
-    path = path:gsub('\\', '/'):gsub('/$', '')
-    dir_name = path:match('/(quinlan%-ard%-[^/]+)')
-              or path:match('/(quinlan)/')
-              or path:match('/(quinlan)$')
-              or path:match('([^/]+)$')
-              or 'shell'
+    -- Extract directory name from cwd
+    dir_name = 'shell'
+    if cwd then
+      local path = cwd.file_path or tostring(cwd)
+      path = path:gsub('\\', '/'):gsub('/$', '')
+      dir_name = path:match('/(quinlan%-ard%-[^/]+)')
+                or path:match('/(quinlan)/')
+                or path:match('/(quinlan)$')
+                or path:match('([^/]+)$')
+                or 'shell'
+    end
   end
 
   -- For quinlan worktrees, show just the suffix (e.g., "weekly-recap")
