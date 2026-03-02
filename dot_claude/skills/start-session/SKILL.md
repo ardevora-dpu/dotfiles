@@ -54,8 +54,16 @@ Process each ticket through all phases before moving to the next.
 
 Resolve the main repo root via `git rev-parse --show-toplevel`. Worktrees are sibling directories to the main repo.
 
+**Critical: always use absolute paths for worktree creation.** Relative paths resolve from cwd, which may be a subdirectory — this creates the worktree inside the repo instead of beside it.
+
+Compute the absolute worktree path:
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WORKTREE_PATH="$(dirname "$REPO_ROOT")/quinlan-ard-{N}"
+```
+
 1. **Check existing worktrees** — `git worktree list`
-   - If a worktree already exists at `../quinlan-ard-{N}`:
+   - If a worktree already exists at `$WORKTREE_PATH`:
      - Check its branch matches `gitBranchName` from Linear
      - **Match:** reuse it, report "Reusing existing worktree"
      - **Mismatch:** warn user with current vs expected branch, ask whether to proceed or recreate
@@ -66,14 +74,14 @@ Resolve the main repo root via `git rev-parse --show-toplevel`. Worktrees are si
 
    ```bash
    # Branch doesn't exist yet — create it
-   git worktree add ../quinlan-ard-{N} -b {gitBranchName}
+   git worktree add "$WORKTREE_PATH" -b {gitBranchName}
 
    # Branch already exists locally — check it out
-   git worktree add ../quinlan-ard-{N} {gitBranchName}
+   git worktree add "$WORKTREE_PATH" {gitBranchName}
 
    # Branch exists on remote only — fetch and create local tracking branch
    git fetch origin {gitBranchName}
-   git worktree add ../quinlan-ard-{N} -b {gitBranchName} origin/{gitBranchName}
+   git worktree add "$WORKTREE_PATH" -b {gitBranchName} origin/{gitBranchName}
    ```
 
 3. **No `gitBranchName` from Linear** — If the field is empty or null, derive one:
@@ -85,16 +93,16 @@ Both Claude Code and Codex support initial prompts via file convention. Write bo
 
 1. **Write `.claude-init-prompt`** to the worktree root (Claude template below)
 2. **Write `.codex-init-prompt`** to the worktree root (Codex template below)
-3. **Spawn a new WezTerm tab:**
+3. **Spawn a new WezTerm tab** in the worktree's Timon workspace (so `dev` resolves git context correctly):
 
    ```bash
-   pane_id=$(wezterm cli spawn --cwd "<worktree_absolute_path>")
+   pane_id=$(wezterm cli spawn --cwd "$WORKTREE_PATH/workspaces/timon")
    ```
 
-4. **Wait for shell init, then launch dev layout:**
+4. **Wait for shell init, then launch dev layout.** The shell runs `auto-env.sh` on entry which may trigger `uv sync` — this takes several seconds. Wait long enough for the prompt to be ready:
 
    ```bash
-   sleep 0.5
+   sleep 5
    wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev\n'
    ```
 

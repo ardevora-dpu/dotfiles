@@ -45,6 +45,16 @@ Use bullets where appropriate. Use brackets to make a nested point or add contex
 - Georgia or serif fonts (looks odd in Outlook dark mode)
 - Excessive white space (one blank line between paragraphs is enough)
 
+## Sending Flow
+
+Always use the draft-then-send workflow:
+
+1. **Create draft** (`create-draft-email`) — saves to Outlook Drafts folder
+2. **Tell the user** — confirm the draft is ready for review in Outlook
+3. **Wait for approval** — only call `send-mail` when the user explicitly says to send
+
+Never call `send-mail` directly. The draft step lets the user review formatting, recipients, and tone in Outlook before committing.
+
 ## Agent Footer
 
 `Sent via Claude Code`
