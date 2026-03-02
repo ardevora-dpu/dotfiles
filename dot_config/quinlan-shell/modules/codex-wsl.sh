@@ -142,10 +142,17 @@ _quinlan_sync_dotfiles_if_needed() {
     }
     IFS='|' read -r wsl_head wsl_origin wsl_dirty <<< "$wsl_state"
 
-    if [[ "$local_head" != "$local_origin" || "$local_dirty" != "0" ]]; then
-        needs_sync=1
+    if [[ "$local_dirty" != "0" || "$wsl_dirty" != "0" ]]; then
+        if [[ "${_QUINLAN_DOTFILES_DIRTY_WARNED:-0}" != "1" ]]; then
+            echo "[codex-wsl] Dotfiles repos have local changes; skipping auto-sync."
+            echo "[codex-wsl] Commit/stash dotfiles changes when you want strict sync checks again."
+            _QUINLAN_DOTFILES_DIRTY_WARNED=1
+            export _QUINLAN_DOTFILES_DIRTY_WARNED
+        fi
+        return 0
     fi
-    if [[ "$wsl_head" != "$wsl_origin" || "$wsl_dirty" != "0" ]]; then
+
+    if [[ "$local_head" != "$local_origin" || "$wsl_head" != "$wsl_origin" ]]; then
         needs_sync=1
     fi
 
@@ -537,7 +544,9 @@ dev() {
     codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
 
     local right_pane
-    right_pane="$(wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "$wsl_context_path")"
+    # MSYS_NO_PATHCONV prevents Git Bash from mangling the Linux path
+    # (e.g. /home/chimern/... → C:/Program Files/Git/home/chimern/...).
+    right_pane="$(MSYS_NO_PATHCONV=1 wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "$wsl_context_path")"
     local tab_label
     tab_label="$(_quinlan_tab_label_from_worktree "$win_dir")"
     wezterm cli set-tab-title --pane-id "$left_pane" "$tab_label" >/dev/null 2>&1 || true
