@@ -223,8 +223,8 @@ config.leader = { key = 'Space', mods = 'CTRL', timeout_milliseconds = 1000 }
 config.keys = {
   -- ===== Leader shortcuts (Ctrl+Space, then key) =====
 
-  -- Tabs
-  { key = 'c', mods = 'LEADER', action = act.SpawnCommandInNewTab { cwd = config.default_cwd } },
+  -- Tabs (inherits current pane's working directory)
+  { key = 'c', mods = 'LEADER', action = act.SpawnTab('CurrentPaneDomain') },
   { key = 'n', mods = 'LEADER', action = act.ActivateTabRelative(1) },
   { key = 'p', mods = 'LEADER', action = act.ActivateTabRelative(-1) },
   { key = '1', mods = 'LEADER', action = act.ActivateTab(0) },
@@ -237,9 +237,9 @@ config.keys = {
   { key = '8', mods = 'LEADER', action = act.ActivateTab(7) },
   { key = '9', mods = 'LEADER', action = act.ActivateTab(8) },
 
-  -- Panes: split
-  { key = 'h', mods = 'LEADER', action = act.SplitHorizontal { cwd = config.default_cwd } },
-  { key = 'v', mods = 'LEADER', action = act.SplitVertical { cwd = config.default_cwd } },
+  -- Panes: split (inherits current pane's working directory)
+  { key = 'h', mods = 'LEADER', action = act.SplitHorizontal { domain = 'CurrentPaneDomain' } },
+  { key = 'v', mods = 'LEADER', action = act.SplitVertical { domain = 'CurrentPaneDomain' } },
 
   -- Panes: navigate (arrow keys)
   { key = 'LeftArrow', mods = 'LEADER', action = act.ActivatePaneDirection('Left') },
