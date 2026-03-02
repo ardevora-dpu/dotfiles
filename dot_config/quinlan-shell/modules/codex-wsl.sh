@@ -97,7 +97,11 @@ _quinlan_dotfiles_state_wsl() {
     local repo="$1"
     local state
 
-    state="$(_quinlan_wsl_bash "git -C '$repo' fetch origin >/dev/null 2>&1 && h=\$(git -C '$repo' rev-parse HEAD) && o=\$(git -C '$repo' rev-parse origin/main) && d=\$(git -C '$repo' status --porcelain | wc -l | tr -d '[:space:]') && printf '%s|%s|%s' \"\$h\" \"\$o\" \"\$d\"" 2>/dev/null)" || return 1
+    state="$(_quinlan_wsl_bash "git -C '$repo' fetch origin >/dev/null 2>&1 && \
+        h=\$(git -C '$repo' rev-parse HEAD) && \
+        o=\$(git -C '$repo' rev-parse origin/main) && \
+        d=\$(git -C '$repo' status --porcelain | wc -l | tr -d '[:space:]') && \
+        printf '%s|%s|%s' \"\$h\" \"\$o\" \"\$d\"" 2>/dev/null)" || return 1
     [[ -n "$state" ]] || return 1
 
     printf '%s' "$state"
