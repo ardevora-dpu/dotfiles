@@ -12,9 +12,10 @@ except (json.JSONDecodeError, ValueError):
 if not isinstance(data, dict):
     data = {}
 
-profile = (os.getenv('QUINLAN_SETTINGS_PROFILE') or os.getenv('USERNAME') or '').lower()
-is_timon = profile in {'chimern', 'azuread\\\\timonvanrensburg', 'timonvanrensburg'}
-is_jeremy = profile in {'jeremy', 'jlang', 'azuread\\\\jeremylang'}
+user_file = pathlib.Path.home() / '.quinlan-user'
+user = user_file.read_text(encoding='utf-8').strip().lower() if user_file.exists() else 'unknown'
+is_timon = user == 'timon'
+is_jeremy = user == 'jeremy'
 
 home = pathlib.Path.home().as_posix()
 statusline_command = f'bash {home}/.claude/statusline-command.sh'
