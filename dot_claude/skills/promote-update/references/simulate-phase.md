@@ -26,17 +26,17 @@ mkdir -p "$ARTIFACT_DIR"
 
 ```bash
 SIM_ARTIFACT_ROOT="$ARTIFACT_DIR/simulation"
-uv run python -m research.update_guard.cli --user jeremy simulate --strict --artifacts-root "$SIM_ARTIFACT_ROOT" | tee "$ARTIFACT_DIR/simulate.log"
+uv run python -m research.update_guard.cli --user jeremy simulate --strict --json --artifacts-root "$SIM_ARTIFACT_ROOT" > "$ARTIFACT_DIR/simulation-result.json"
 ```
 
-Locate the simulation report written under `--artifacts-root`:
+Read the deterministic report path from structured output:
 ```bash
-REPORT_PATH=$(find "$SIM_ARTIFACT_ROOT" -type f -name simulation-report.json | sort | tail -1)
+REPORT_PATH=$(jq -r '.report_path // empty' "$ARTIFACT_DIR/simulation-result.json")
 [ -n "$REPORT_PATH" ] || { echo "simulation-report.json not found"; exit 1; }
 cp "$REPORT_PATH" "$ARTIFACT_DIR/simulation-report.json"
 ```
 
-Note: Update Guard creates a per-run subdirectory under `--artifacts-root`; do not assume the report path is directly `$SIM_ARTIFACT_ROOT/simulation-report.json`.
+Note: Update Guard creates a per-run subdirectory under `--artifacts-root`; rely on `.report_path` from JSON output instead of parsing stdout logs.
 
 ## Build promotion plan (deterministic)
 
