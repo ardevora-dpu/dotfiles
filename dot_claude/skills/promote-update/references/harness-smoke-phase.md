@@ -31,6 +31,7 @@ Validate that the skill flow and CLI glue behave correctly without PR/merge side
   "promotion_plan_status": "ready|empty|unsafe",
   "selected_paths_initial_count": 0,
   "ambiguous_count": 0,
+  "ignored_user_bisync_managed_count": 0,
   "blockers": []
 }
 ```

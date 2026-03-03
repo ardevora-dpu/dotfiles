@@ -58,6 +58,8 @@ Read `simulation-report.json` and `promotion-plan.json` and summarise:
   - `promotable_platform`
   - `ambiguous`
   - `non_promotable_user_or_unknown`
+- informational ignore bucket:
+  - `ignored_user_bisync_managed_count` (known workspace-sync managed paths; not merge blockers)
 - initial selection (`selected_paths_initial`) before ambiguous triage
 
 If status is `unsafe` or `empty`, stop before Stage PR unless Timon explicitly asks to continue for diagnosis-only output.
