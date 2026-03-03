@@ -175,35 +175,37 @@ _quinlan_sync_dotfiles_if_needed() {
     }
 }
 
-# shellcheck disable=SC2120 # Default parameter is intentional — callers use the default
-_ensure_codex_snowflake_timeout() {
-    local config="$HOME/.codex/config.toml"
-    local timeout="${1:-45.0}"
+# shellcheck disable=SC2120 # Default parameters are intentional — callers use defaults
+_ensure_codex_mcp_setting() {
+    local config="$1"
+    local server="$2"
+    local key="$3"
+    local value="$4"
 
     [[ -f "$config" ]] || return 0
-    grep -q '^\[mcp_servers\.snowflake\]$' "$config" || return 0
+    grep -q "^\[mcp_servers\\.${server}\]$" "$config" || return 0
 
     local tmp
     tmp="$(mktemp)" || return 0
 
-    awk -v timeout="$timeout" '
-    BEGIN { in_sf=0; set=0 }
-    /^\[mcp_servers\.snowflake\]$/ {
-        in_sf=1
+    awk -v section="[mcp_servers.${server}]" -v key="$key" -v value="$value" '
+    BEGIN { in_target=0; set=0 }
+    $0 == section {
+        in_target=1
         set=0
         print
         next
     }
     /^\[/ {
-        if (in_sf && !set) {
-            print "startup_timeout_sec = " timeout
+        if (in_target && !set) {
+            print key " = " value
         }
-        in_sf=0
+        in_target=0
     }
     {
-        if (in_sf && $0 ~ /^[[:space:]]*startup_timeout_sec[[:space:]]*=/) {
+        if (in_target && $0 ~ ("^[[:space:]]*" key "[[:space:]]*=")) {
             if (!set) {
-                print "startup_timeout_sec = " timeout
+                print key " = " value
                 set=1
             }
             next
@@ -211,11 +213,23 @@ _ensure_codex_snowflake_timeout() {
         print
     }
     END {
-        if (in_sf && !set) {
-            print "startup_timeout_sec = " timeout
+        if (in_target && !set) {
+            print key " = " value
         }
     }
     ' "$config" > "$tmp" && mv "$tmp" "$config"
+}
+
+# shellcheck disable=SC2120 # Default parameters are intentional — callers use defaults
+_ensure_codex_mcp_timeouts() {
+    local config="$HOME/.codex/config.toml"
+    local snowflake_startup="${1:-45.0}"
+    local neon_startup="${2:-60.0}"
+    local neon_tool="${3:-300.0}"
+
+    _ensure_codex_mcp_setting "$config" "snowflake" "startup_timeout_sec" "$snowflake_startup"
+    _ensure_codex_mcp_setting "$config" "neon" "startup_timeout_sec" "$neon_startup"
+    _ensure_codex_mcp_setting "$config" "neon" "tool_timeout_sec" "$neon_tool"
 }
 
 _ensure_wsl_codex_dbt_mcp_env() {
@@ -459,7 +473,7 @@ c() {
         echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
         return 1
     fi
-    _ensure_codex_snowflake_timeout
+    _ensure_codex_mcp_timeouts
     _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
     _ensure_wsl_codex_project_doc_fallback
     _ensure_codex_no_user_agents
@@ -514,7 +528,7 @@ dev() {
         echo "[codex-wsl] Missing Timon workspace in Windows worktree: $claude_workspace" >&2
         return 1
     fi
-    _ensure_codex_snowflake_timeout
+    _ensure_codex_mcp_timeouts
     _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
     _ensure_wsl_codex_project_doc_fallback
     _ensure_codex_no_user_agents
