@@ -4,7 +4,7 @@ Stage selected promotion files into a single idempotent branch/PR.
 
 ## Input
 
-- `$ARTIFACT_DIR/promotion-plan.json` from `update-guard promote plan`
+- `ARTIFACT_DIR/promotion-plan.json` from `update-guard promote plan` (use the literal absolute path resolved at the start)
 
 ## Interactive triage (required)
 

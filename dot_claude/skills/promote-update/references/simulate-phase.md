@@ -1,5 +1,7 @@
 # Simulate + Classify Phase
 
+**Path convention:** All commands below use `REPO_ROOT` and `ARTIFACT_DIR` as placeholders. Replace with the absolute literal paths you resolved at the start (see SKILL.md execution model). Do not rely on shell variables persisting across Bash calls.
+
 ## Preflight
 
 1. Confirm repo is clean for tracked files:
@@ -15,31 +17,30 @@ command -v uv gh jq
 git fetch origin --prune
 git rev-parse --verify origin/jeremy/checkpoints/live
 ```
-4. Create run artefact directory:
+4. Create run artefact directory and resolve to absolute path:
 ```bash
-RUN_ID=$(date -u +%Y%m%d-%H%M%S)
-ARTIFACT_DIR="workspaces/timon/promotion-artifacts/${RUN_ID}"
-mkdir -p "$ARTIFACT_DIR"
+RUN_ID=$(date -u +%Y%m%d-%H%M%S) && ARTIFACT_DIR="$(pwd)/workspaces/timon/promotion-artifacts/${RUN_ID}" && mkdir -p "$ARTIFACT_DIR" && echo "$ARTIFACT_DIR"
 ```
+Capture the echoed absolute path and use it as a literal in all subsequent Bash calls.
 
 ## Run faithful simulation (deterministic)
 
+Run from `REPO_ROOT`. Replace `ARTIFACT_DIR` with the literal absolute path:
 ```bash
-SIM_ARTIFACT_ROOT="$ARTIFACT_DIR/simulation"
-uv run python -m research.update_guard.cli --user jeremy simulate --strict --json --artifacts-root "$SIM_ARTIFACT_ROOT" > "$ARTIFACT_DIR/simulation-report.json"
+uv run python -m research.update_guard.cli --user jeremy simulate --strict --json --artifacts-root "ARTIFACT_DIR/simulation" > "ARTIFACT_DIR/simulation-report.json"
 ```
 
 Sanity-check simulation output:
 ```bash
-jq -e '.status and (.safe | type == "boolean") and (.discrepancies | type == "array")' "$ARTIFACT_DIR/simulation-report.json" >/dev/null
+jq -e '.status and (.safe | type == "boolean") and (.discrepancies | type == "array")' "ARTIFACT_DIR/simulation-report.json" >/dev/null
 ```
 
-Note: Update Guard still writes canonical artefacts under a per-run subdirectory in `--artifacts-root`; this phase keeps a stable copy at `$ARTIFACT_DIR/simulation-report.json` for the next steps.
+Note: Update Guard still writes canonical artefacts under a per-run subdirectory in `--artifacts-root`; this phase keeps a stable copy at `ARTIFACT_DIR/simulation-report.json` for the next steps.
 
 ## Build promotion plan (deterministic)
 
 ```bash
-uv run python -m research.update_guard.cli promote plan --simulation-report "$ARTIFACT_DIR/simulation-report.json" --artifacts-root "$ARTIFACT_DIR" | tee "$ARTIFACT_DIR/promote-plan.log"
+uv run python -m research.update_guard.cli promote plan --simulation-report "ARTIFACT_DIR/simulation-report.json" --artifacts-root "ARTIFACT_DIR" 2>&1 | tee "ARTIFACT_DIR/promote-plan.log"
 ```
 
 Interpret exit code from `promote plan`:

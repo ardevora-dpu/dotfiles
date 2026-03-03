@@ -15,6 +15,12 @@ Run a safe pre-`/update` promotion for Jeremy runtime changes using a hybrid mod
 When Timon asks to "test the harness", run `references/harness-smoke-phase.md` first.
 This is agent-run and dry-run only (no PR/merge side effects).
 
+## Execution Model
+
+**Create a task list at the start.** Use `TaskCreate` to track every phase and its sub-steps so nothing gets skipped. Mark each task `in_progress` before starting and `completed` when done. This is mandatory — the test run showed that steps get silently dropped without explicit tracking.
+
+**Resolve paths once, reuse literals.** Each Bash tool call runs in a fresh shell — variables do not persist across calls. After creating the artefact directory, resolve `REPO_ROOT` and `ARTIFACT_DIR` to absolute paths and use those literal strings in all subsequent Bash commands. Never rely on `$ARTIFACT_DIR` surviving between separate Bash calls.
+
 ## Phase Sequence
 
 | Phase | Name | Reference | Always run |
