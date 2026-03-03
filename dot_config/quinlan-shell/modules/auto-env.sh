@@ -23,6 +23,8 @@ _quinlan_osc7_cwd() {
     # (E:/projects/...) so WezTerm can parse the drive letter correctly.
     # Without this, WezTerm sees /e/... which isn't a valid Windows path,
     # causing new tabs to fall back to ~ or produce doubled paths (/c/c/...).
+    # Guard: cygpath only exists in MSYS2/Git Bash, not WSL.
+    command -v cygpath >/dev/null 2>&1 || return
     printf '\e]7;file:///%s\e\\' "$(cygpath -m "$PWD")"
 }
 
