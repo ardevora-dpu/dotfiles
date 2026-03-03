@@ -26,17 +26,15 @@ mkdir -p "$ARTIFACT_DIR"
 
 ```bash
 SIM_ARTIFACT_ROOT="$ARTIFACT_DIR/simulation"
-uv run python -m research.update_guard.cli --user jeremy simulate --strict --json --artifacts-root "$SIM_ARTIFACT_ROOT" > "$ARTIFACT_DIR/simulation-result.json"
+uv run python -m research.update_guard.cli --user jeremy simulate --strict --json --artifacts-root "$SIM_ARTIFACT_ROOT" > "$ARTIFACT_DIR/simulation-report.json"
 ```
 
-Read the deterministic report path from structured output:
+Sanity-check simulation output:
 ```bash
-REPORT_PATH=$(jq -r '.report_path // empty' "$ARTIFACT_DIR/simulation-result.json")
-[ -n "$REPORT_PATH" ] || { echo "simulation-report.json not found"; exit 1; }
-cp "$REPORT_PATH" "$ARTIFACT_DIR/simulation-report.json"
+jq -e '.status and (.safe | type == "boolean") and (.discrepancies | type == "array")' "$ARTIFACT_DIR/simulation-report.json" >/dev/null
 ```
 
-Note: Update Guard creates a per-run subdirectory under `--artifacts-root`; rely on `.report_path` from JSON output instead of parsing stdout logs.
+Note: Update Guard still writes canonical artefacts under a per-run subdirectory in `--artifacts-root`; this phase keeps a stable copy at `$ARTIFACT_DIR/simulation-report.json` for the next steps.
 
 ## Build promotion plan (deterministic)
 
