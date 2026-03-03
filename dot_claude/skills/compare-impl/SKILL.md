@@ -1,24 +1,26 @@
 ---
 name: compare-impl
-description: Compare two parallel implementations of the same ticket. Works from either agent. Outputs a handoff prompt the other agent can execute directly.
+description: Peer-review a parallel implementation against your plan. Produces a debate-style handoff prompt for the other agent with evidence-backed feedback.
 ---
 
 # Compare Implementation
 
-Audit a parallel implementation against the plan in your current context. Designed for the two-model workflow where two agents independently implement the same ticket, then one reviews the other's work.
+Peer-review a parallel implementation against the plan in your current context. Designed for the two-model workflow where two agents independently implement the same ticket, then one reviews the other's work.
 
 ## The Two-Model Pattern
 
-The power here is **independent reasoning**: two agents read the same ticket, form independent plans, implement independently, then one reviews the other's work against its own plan. Divergences are the interesting signal — they reveal gaps neither agent would catch alone.
+The power is **independent reasoning**: two agents read the same ticket, form independent plans, implement independently, then one reviews the other's work.
 
-This is essentially N-version programming: independent implementations from the same spec. When both agents make the same choice, it's strong evidence. When they diverge, that's where the real design decisions live. Be aware that agents sharing training data can make correlated mistakes — so agreements on edge cases or domain-specific logic still deserve a skeptical eye.
+**Divergences are the most valuable output.** When two agents independently solve the same problem and arrive at different answers, that's where the real design insight lives — one agent saw a constraint the other missed, or found a better path the plan didn't consider. Spend most of your thinking time here. Agreements are quick to validate; divergences are where the review earns its keep.
+
+This is N-version programming from the same spec. Be aware that agents sharing training data can make correlated mistakes — so even agreements on edge cases and domain-specific logic deserve a skeptical eye.
 
 Typical flow:
 1. Both agents read the Linear ticket and agree on outcomes
 2. Both create independent plans
 3. Both implement (on the same branch, shared via remote)
-4. Timon invokes `/compare-impl` in the **reviewing agent** with just the plan
-5. The reviewing agent pulls the other agent's changes from remote and audits against the plan
+4. Timon invokes `/compare-impl` in the **reviewing agent**
+5. The reviewing agent pulls the other's changes, reviews, and produces a debate-style handoff
 
 ## Invocation
 
@@ -28,7 +30,7 @@ Typical flow:
 ```
 
 No arguments needed — the skill infers everything from context:
-- **Plan:** Already in the current conversation (provided before invoking)
+- **Plan:** Already in the current conversation
 - **Branch:** Current worktree branch (should match the Linear ticket)
 - **Other agent's changes:** Pulled from the same remote branch
 
@@ -38,102 +40,120 @@ If Timon pastes the other agent's output/summary alongside the command, use that
 
 ### Step 1: Gather Context
 
-1. **Read the plan** from the current conversation context. Identify:
-   - Each discrete change/touch point
-   - Expected files and locations
-   - Stated out-of-scope items
-   - Verification criteria
+1. **Read the plan** from the current conversation context. Identify each discrete touch point, expected files, out-of-scope items, and verification criteria.
 
-2. **Find the other agent's changes.** The branch is shared — pull from remote:
-   ```bash
-   git fetch origin
-   git log --oneline HEAD..origin/<current-branch>
-   ```
-   If there are new commits, pull them. Read the diffs to understand what the other agent changed.
+2. **Find the other agent's changes.** The branch is shared — pull from remote, read the diffs.
 
-3. **Read the Linear ticket** (if ARD-xxx is in the branch name) for the original requirements. Use `mcp__linear__get_issue` with the ticket identifier.
+3. **Read the Linear ticket** (if ARD-xxx is in the branch name) for the original requirements.
 
 ### Step 2: Audit
 
-For each touch point in the plan:
+Map each plan touch point to what the other agent did:
 
-1. **Check if addressed** — Did the other agent make the change? Read the relevant file.
-2. **Check correctness** — Does the change achieve the stated outcome?
-3. **Check for side effects** — Did the other agent change something outside the plan scope?
-4. **Note divergences** — If the other agent took a different approach, assess whether it's:
-   - Equivalent alternative (fine)
-   - Improvement over the plan (note it)
-   - Gap or omission (flag it)
-   - Risk or regression (flag urgently)
+1. **Addressed?** — Did the other agent make the change?
+2. **Correct?** — Does it achieve the stated outcome?
+3. **Side effects?** — Changes outside plan scope?
+4. **Divergences** — Different approach? Classify as equivalent, improvement, gap, or risk.
 
 Also check:
-- **Unstated work** — Changes not in the plan? Helpful or scope creep? Track what kind of additions each agent makes — patterns reveal biases (over-engineering vs under-engineering).
-- **Test strategy** — Not just "were tests added" but what do they actually assert? Watch for tests that pass but don't meaningfully validate behaviour — this is a common agent failure mode.
-- **Error handling divergence** — One of the strongest quality signals. If one agent adds boundary validation the other doesn't, that's a design assumption worth surfacing.
-- **Silent risks** — Code that appears correct but strips safety checks, removes defensive logic, or produces plausible-looking output without real validation. These are harder to catch than crashes and more dangerous.
-- **Verification criteria** — Can the stated verification steps still pass?
+- **Unstated work** — Changes not in the plan. Helpful or scope creep?
+- **Test strategy** — What do tests actually assert? Watch for tests that pass but don't meaningfully validate.
+- **Error handling divergence** — One of the strongest quality signals.
+- **Silent risks** — Code that appears correct but strips safety checks or produces plausible output without real validation.
 
-### Step 3: Simplify
+### Step 3: Verify with Evidence
 
-Before discussing divergences, look for surface area reduction across **both** implementations:
-- Duplicated logic that could be consolidated
-- Over-engineered abstractions where simpler code would do
-- Unnecessary compatibility shims or defensive code
-- Code that exists in both implementations but isn't needed by either
+**This is critical.** Don't just reason about divergences — test them. Run code, check live state, verify claims. Evidence-backed opinions are the foundation of the handoff.
 
-If running in Claude Code and `/simplify` is available, invoke it on the combined changeset. Otherwise, analyse directly and include simplification opportunities in the next step.
+For each significant divergence:
+- **Run the code** if possible (scripts, tests, linters, template rendering)
+- **Check live state** (does the file exist? does the config match? does the env var resolve?)
+- **Test both approaches** when feasible — the plan's approach and the other agent's approach
+- **Record results** — what passed, what failed, what surprised you
 
-### Step 4: Feature Selection
+If you can't test something (requires the other machine, production access, etc.), note that explicitly as a verification gap.
 
-Use `AskUserQuestion` to walk through findings interactively. The goal is **cherry-picking the best from both implementations**, not just flagging problems.
+### Step 4: Form Opinions
 
-For each meaningful divergence, present the trade-off:
-- "Your agent did X, the other agent did Y. Here's why each approach works / has risk. Which do you want to keep?"
-- "The plan called for Z but the other agent skipped it. Still needed?"
-- "The other agent added W which wasn't in the plan. Keep, modify, or remove?"
-- "Both implementations have duplicated logic here. Simplify to one approach?"
+Divergences are where you should spend the most time. For each one, take a position — you are a peer reviewer, not a neutral reporter:
 
-Let Timon make each call. Track decisions as you go — they feed directly into the handoff prompt.
+- **Agree** — The other agent's approach is better than the plan. Say why, with evidence. This is not a consolation prize — genuinely good divergences are the whole point of independent reasoning.
+- **Disagree** — The plan's approach is better. Say why, with evidence. Frame as "I'd recommend X because [evidence], but here's the counterargument."
+- **Suggest alternative** — Neither approach is ideal. Propose something better.
 
-### Step 5: Handoff Prompt
+Back every opinion with evidence from Step 3 where possible. Theoretical reasoning is fine for architectural choices, but always prefer "I tested this and found..." over "I think this might...".
 
-After feature selection, produce a **self-contained imperative prompt** that the other agent can execute without ambiguity. This is the deliverable — not a report.
+Matched items (plan and implementation agree) need only brief confirmation. Don't spend equal time on agreements and divergences — the divergences are the interesting signal.
 
-Structure the prompt as:
+### Step 5: Surface Key Decisions
+
+Use `AskUserQuestion` to confirm the **biggest divergences only** — the ones that change architecture, scope, or risk profile. Aim for one round, 2-4 questions max.
+
+For each, present:
+- What the other agent did vs what the plan said
+- Your recommendation and why
+- Frame as a recommendation to confirm, not a blank choice
+
+Do not walk through every divergence interactively. Most should be handled by your own judgement in Step 4. Only escalate decisions where:
+- Both approaches have real trade-offs and you're genuinely uncertain
+- The choice has safety or irreversibility implications
+- The scope change is large enough that Timon should explicitly opt in
+
+### Step 6: Draft Handoff
+
+Produce a **debate-style handoff prompt** for the other agent. This is the deliverable — peer feedback that invites the other agent to respond, verify, and make final decisions.
+
+**Tone:** You are a peer, not a boss. Frame feedback as "I'd recommend..." and "consider whether...", not "do this" and "change that." The other agent made independent decisions for reasons — engage with those reasons.
+
+Structure:
 
 ```
 ## Context
-<One-paragraph summary: ticket, branch, what both agents implemented, key decisions Timon made>
+<One-paragraph summary: ticket, branch, what both agents implemented, what Timon confirmed>
 
-## Keep
-<Things from the other agent's implementation to preserve as-is. Be specific: file paths, function names, approach.>
+## Agreements
+<Divergences where you agree with the other agent's approach over the plan.
+For each: what they did, why it's good, evidence if you tested it.
+Validates good independent decisions — this matters for the collaborative dynamic.>
 
-## Change
-<Things from the other agent's implementation that need modification. State the current state and the desired state.>
+## Feedback
+<The substantive divergences where you'd recommend a different approach.
+For each:
+- What you did (plan) vs what they did
+- Evidence you gathered (test results, live state checks)
+- Your recommendation and reasoning
+- The counterargument — why their approach might be right
+- Specific verification request: "please check X" or "I couldn't test Y"
+Order by significance, most important first.>
 
-## Add
-<Things from your implementation (or new requirements) that the other agent didn't include. Provide enough detail to implement without guessing.>
+## Suggestions
+<Non-controversial items: omissions, minor fixes, small improvements.
+Still framed as suggestions, not commands.
+"I'd suggest adding X because Y.">
 
-## Remove
-<Things from the other agent's implementation to delete. Explain why — prevents the agent from re-adding them.>
-
-## Simplify
-<Consolidation opportunities across both implementations. Describe the target state, not just "simplify this".>
+## Open Questions
+<Things you couldn't verify or aren't sure about.
+"I couldn't test whether Z works on Jeremy's machine — worth checking."
+"The plan assumed A but neither of us verified it — can you confirm?">
 ```
 
-Present the prompt to Timon for review before he pastes it to the other agent. Omit any section that has no items.
+Present the handoff to Timon for a final review before he sends it to the other agent. Omit any section that has no items.
 
-## When to Use a Team
+### Step 7: Simplify (optional)
 
-For large changes (many files, multiple packages, or cross-cutting concerns), suggest using `TeamCreate` to parallelise the audit — e.g., one agent reviews code changes while another reviews docs/tests. The lead agent synthesises findings.
+If both implementations together create consolidation opportunities, include them in the Suggestions section:
+- Duplicated logic across both implementations
+- Over-engineered abstractions where simpler code would do
+- Code that exists in both but isn't needed by either
 
 ## Guiding Principles
 
-- **The other agent is allowed to diverge.** Different is not wrong. Only flag divergences that create risk or miss requirements.
-- **The plan is the contract, not a script.** Judge outcomes, not exact steps.
-- **Review structurally, not line-by-line.** Focus on architectural choices, scope assumptions, and edge case coverage. Leave style to linters.
-- **Be specific.** Reference file paths and line numbers when flagging issues.
-- **Don't over-report.** If everything looks good, say so briefly. The value is in catching gaps, not narrating the obvious.
-- **Fresh eyes matter.** You're in a clean context for a reason — approach the code without the sunk-cost bias of having written the plan.
-- **Skeptical agreement.** When both implementations make the same choice, that's probably right — but probe agreements on edge cases and domain logic, where correlated training-data biases can mislead both agents.
-- **Output is a prompt, not a report.** The deliverable is an actionable handoff the other agent can execute, not a summary for humans to interpret.
+- **The other agent is a peer.** They made independent decisions for reasons. Engage with those reasons rather than overriding them.
+- **Evidence over theory.** Run the code. Check live state. Test both approaches. "I ran X and it failed" beats "I think X might not work."
+- **Divergence is the signal.** Where both agents agree, it's probably right (but probe edge cases). Where they diverge, that's where the design insight lives.
+- **The plan is a starting point, not a contract.** The other agent may have discovered things during implementation that the plan missed. Be open to that.
+- **Explicit agreement matters.** When the other agent made a good call that diverges from your plan, say so. This builds trust in the collaborative workflow.
+- **Nothing is stated as fact.** Frame everything as your assessment. The other agent should verify, not just comply.
+- **Verification requests are first-class.** Every feedback point should end with what the other agent should check. You might have missed something.
+- **Fresh eyes matter.** You're in a clean context for a reason — approach the code without sunk-cost bias.
+- **Don't over-report.** If everything looks good, say so briefly. The value is in the debate points, not narrating agreement.
