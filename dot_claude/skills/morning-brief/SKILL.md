@@ -36,8 +36,12 @@ Compute `period_start` (ISO datetime) and `period_end` (now). Pass both to every
 3. DISPATCH 8 sub-agents in parallel (see Agent Dispatch Table)
    └── Each reads its section from references/source-queries.md
 4. COLLECT results — best-effort, note failures
+4.5. DIFF — Read the most recent previous brief (brief-YYYY-MM-DD.md, sorted
+     by filename descending, skip today's). Pass its content as context to the
+     synthesis step. If no previous brief exists, skip diffing.
 5. LOAD references/assembly-format.md for voice and structural requirements
 6. SYNTHESISE: actions at top, exec summary, then expand/merge/skip based on findings
+   (with previous brief context for delta tagging — see assembly-format.md § Delta Awareness)
 7. WRITE brief to workspaces/timon/.local/morning-brief/brief-YYYY-MM-DD.md
 8. UPDATE last-run.json
 9. PRESENT to terminal

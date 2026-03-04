@@ -26,7 +26,7 @@ This is agent-run and dry-run only (no PR/merge side effects).
 | Phase | Name | Reference | Always run |
 |------|------|-----------|------------|
 | 1 | Simulate + Classify | `references/simulate-phase.md` | Yes |
-| 2 | Triage + Stage PR | `references/stage-pr-phase.md` | If promote plan status is `ready` and not dry-run |
+| 2 | Review + Triage + Stage PR | `references/stage-pr-phase.md` | If promote plan status is `ready`, not dry-run, and Timon approves after phase 1 report |
 | 3 | Validate + Merge Gate | `references/summary-phase.md` | Yes |
 
 Load one phase reference at a time.
@@ -34,6 +34,7 @@ Load one phase reference at a time.
 ## Core contracts
 
 - Never auto-merge. Use `AskUserQuestion` for explicit approval.
+- Never auto-stage PR. After phase 1, present a structured report and ask Timon whether to dig into changes first or proceed.
 - Idempotent runs: reuse/update existing promotion PR if one exists.
 - Start with `update-guard promote status`; if status is `clean`, stop and report "no promotion needed".
 - Deterministic classification lives in `update-guard promote plan` (no shell path bucketing in markdown).

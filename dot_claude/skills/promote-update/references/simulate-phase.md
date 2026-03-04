@@ -67,4 +67,17 @@ Read `simulation-report.json` and `promotion-plan.json` and summarise:
   - `ignored_user_bisync_managed_count` (known workspace-sync managed paths; not merge blockers)
 - initial selection (`selected_paths_initial`) before ambiguous triage
 
+Then produce a `work_through` list for Timon before any staging:
+- `blocking_now`: all `discrepancies` with `severity=error` from simulation.
+- `review_before_stage`: selected paths that need human review before PR staging.
+  - Always include everything in `promotable_platform`.
+  - Include shared files in `promotable_shared` when diff is non-trivial (multiple sections or policy/process changes).
+- `triage_needed`: `ambiguous` paths (if any).
+- `safe_to_stage_now`: `selected_paths_initial` minus reviewed/triage items.
+
+Pause here and ask Timon what to do next:
+1. `Work through review items (Recommended)` — inspect diffs and discuss intent before staging.
+2. `Proceed to stage PR` — continue directly to stage phase.
+3. `Stop` — end run after report.
+
 If status is `unsafe` or `empty`, stop before Stage PR unless Timon explicitly asks to continue for diagnosis-only output.

@@ -2,6 +2,8 @@
 
 Stage selected promotion files into a single idempotent branch/PR.
 
+Precondition: Timon has explicitly approved continuing past the phase 1 report.
+
 ## Input
 
 - `ARTIFACT_DIR/promotion-plan.json` from `update-guard promote plan` (use the literal absolute path resolved at the start)
