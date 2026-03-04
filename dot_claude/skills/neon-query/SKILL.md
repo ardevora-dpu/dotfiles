@@ -5,13 +5,25 @@ description: Write accurate queries against the Neon chat history database. Load
 
 # Neon Query
 
-Use this skill whenever querying Jeremy's chat-history database in Neon Postgres.
+Use this skill whenever querying the team chat-history database in Neon Postgres.
 
 ## Connection Defaults
 
 - **Project ID:** `shy-wildflower-46673345` — always pass as `projectId`
 - **Database:** `neondb` (Neon default) — do NOT pass `databaseName`
 - **Tool:** `mcp__neon__run_sql` for single statements, `mcp__neon__run_sql_transaction` for multi-statement workflows
+
+## Multi-User
+
+The database contains sessions from all platform users. Filter by `user_name` when needed.
+
+| `user_name` | `tool_name` | Description |
+|-------------|-------------|-------------|
+| `jeremy` | `claude` | PM research sessions |
+| `timon` | `claude`, `codex` | Developer sessions |
+| `jack` | `claude` | Communications/inspection sessions |
+
+Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_name`, `machine_name` for provenance filtering.
 
 ## Engine Defaults (Current)
 
@@ -31,24 +43,29 @@ Use this skill whenever querying Jeremy's chat-history database in Neon Postgres
 
 | Task | Use this view/table | Why |
 |------|---------------------|-----|
-| List sessions, check activity | `search_sessions_agent_v` | Lightweight, pre-aggregated counters |
-| Scan messages without full text | `search_messages_agent_light_v` | Has `content_preview` (200 chars), avoids heavy payload columns |
-| Ranked message search | `search_messages` + `search_sessions_agent_v` | `BM25`/`FTS` indexes on base table |
-| Search what Jeremy asked | `search_user_prompts_agent_v` | Pre-filtered to `human_user_prompt` |
-| Search tool calls | `search_tool_usage` | Includes `tool_fts`, trigram index on `tool_input::text`, optional BM25 |
+| List sessions, check activity | `chat_sessions_agent_v` | Lightweight, pre-aggregated counters |
+| Scan messages without full text | `chat_messages_agent_light_v` | Has `content_preview` (200 chars), avoids TOAST |
+| Ranked message search | `chat_messages` + `chat_sessions_agent_v` | `BM25`/`FTS` indexes on base table |
+| Search what a user asked | `chat_user_prompts_agent_v` | Pre-filtered to `human_user_prompt` |
+| Search tool calls | `chat_tool_usage` | Includes `tool_fts`, trigram index on `tool_input::text` |
+| System events / token counts | `chat_events_agent_v` | Token usage, event timeline |
 
-**Critical:** `search_messages_agent_light_v` does **NOT** include `content_text`.
+**Critical:** `chat_messages_agent_light_v` does **NOT** include `content_text`. Use `chat_messages_agent_v` for FTS/ILIKE.
 
 ## Column Quick-Reference
 
 | Want this? | Correct column | On which view/table |
 |------------|----------------|---------------------|
-| Session summary | `session_summary` | `search_sessions_agent_v` |
-| Message text (full) | `content_text` | `search_messages`, `search_messages_agent_v`, `search_user_prompts_agent_v` |
-| Message preview | `content_preview` | `search_messages_agent_light_v` |
-| Tool input text search | `tool_input::text` | `search_tool_usage` |
-| Tool SQL query | `sql_query` | `search_tool_usage` |
-| Last activity timestamp | `activity_at` | `search_sessions_agent_v` |
+| Session summary | `session_summary` | `chat_sessions_agent_v` |
+| Message text (full) | `content_text` or `content` | `chat_messages`, `chat_messages_agent_v`, `chat_user_prompts_agent_v` |
+| Message preview | `content_preview` or `content` | `chat_messages_agent_light_v` |
+| Message role | `record_type` or `role` | All message views |
+| Tool input text search | `tool_input::text` | `chat_tool_usage` |
+| Tool SQL query | `sql_query` | `chat_tool_usage` |
+| Last activity timestamp | `activity_at` | `chat_sessions_agent_v` |
+| Session owner | `user_name` | All tables and views |
+
+**View aliases:** Agent views expose `role` (= `record_type`), `content` (= `content_text` or `content_preview`), `created_at` (= `timestamp`).
 
 ## Query Workflow
 
@@ -64,14 +81,16 @@ Use this skill whenever querying Jeremy's chat-history database in Neon Postgres
 -- BM25 default (ranked discussion search)
 SELECT
   s.session_id,
+  s.user_name,
   s.started_at,
   m.id,
   m.timestamp,
   LEFT(m.content_text, 220) AS preview,
   paradedb.score(m.id) AS score
-FROM public.search_messages m
-JOIN public.search_sessions_agent_v s
-  ON s.session_id = m.session_id
+FROM public.chat_messages m
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = m.source_id
+ AND s.session_id = m.session_id
 WHERE s.started_at >= now() - interval '14 days'
   AND m.content_text @@@ 'workflow timeout token usage'
 ORDER BY score DESC, m.timestamp DESC NULLS LAST
@@ -80,14 +99,16 @@ LIMIT 20;
 -- FTS fallback
 SELECT
   s.session_id,
+  s.user_name,
   s.started_at,
   m.id,
   m.timestamp,
   LEFT(m.content_text, 220) AS preview,
   ts_rank_cd(m.content_fts, websearch_to_tsquery('english', 'workflow timeout token usage')) AS score
-FROM public.search_messages m
-JOIN public.search_sessions_agent_v s
-  ON s.session_id = m.session_id
+FROM public.chat_messages m
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = m.source_id
+ AND s.session_id = m.session_id
 WHERE s.started_at >= now() - interval '14 days'
   AND m.content_fts @@ websearch_to_tsquery('english', 'workflow timeout token usage')
 ORDER BY score DESC, m.timestamp DESC NULLS LAST
@@ -96,11 +117,13 @@ LIMIT 20;
 -- Trigram exact-fragment fallback (do not broad-scan content_json::text)
 SELECT
   m.session_id,
+  m.user_name,
   m.timestamp,
   LEFT(m.content_text, 220) AS preview
-FROM public.search_messages m
-JOIN public.search_sessions_agent_v s
-  ON s.session_id = m.session_id
+FROM public.chat_messages m
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = m.source_id
+ AND s.session_id = m.session_id
 WHERE s.started_at >= now() - interval '30 days'
   AND m.content_text ILIKE '%ignored null byte in input%'
 ORDER BY m.timestamp DESC
@@ -109,12 +132,14 @@ LIMIT 20;
 -- Tool-input exact-fragment search (trigram-backed)
 SELECT
   t.session_id,
+  t.user_name,
   t.timestamp,
   t.tool_name,
   LEFT(t.tool_input::text, 220) AS tool_input_preview
-FROM public.search_tool_usage t
-JOIN public.search_sessions_agent_v s
-  ON s.session_id = t.session_id
+FROM public.chat_tool_usage t
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = t.source_id
+ AND s.session_id = t.session_id
 WHERE s.started_at >= now() - interval '30 days'
   AND t.tool_input::text ILIKE '%RMBS-US%'
 ORDER BY t.timestamp DESC
@@ -123,10 +148,12 @@ LIMIT 20;
 
 ## Fast Gotchas
 
-- Table names are `search_sessions`, `search_messages`, `search_tool_usage`, plus `sync_state`.
-- Message timestamp is `timestamp`, not `created_at`.
+- Table names are `chat_sessions`, `chat_messages`, `chat_tool_usage`, `chat_events`, plus `chat_sync_state`.
+- Views are `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_messages_agent_light_v`, `chat_user_prompts_agent_v`, `chat_events_agent_v`.
+- Message timestamp is `timestamp` (or alias `created_at` on views).
 - Session sync column is `synced_at`, not `updated_at`.
 - `thinking_config` and `tool_input` are `jsonb`.
+- All joins between sessions and messages/events/tools require `source_id AND session_id` (composite key).
 - `message_class` values:
 `human_user_prompt`, `assistant`, `assistant_style_user`, `tool_result_payload`, `system`, `system_injected`, `command_invocation`, `summary`, `queue_operation`, `other`.
 
@@ -136,13 +163,12 @@ LIMIT 20;
   - `scripts/sync/sql/000_schema_bootstrap.sql`
   - `scripts/sync/sql/010_search_quality.sql`
   - `scripts/sync/sql/030_tool_result_text_backfill.sql`
-- Benchmark harness:
-  - `scripts/sync/benchmark/bm25_bakeoff.py`
-  - `scripts/sync/benchmark/query_set_v1.json`
 
 ## Quick Health Check
 
 ```sql
-SELECT COUNT(*) AS files_tracked, MAX(synced_at) AS last_sync
-FROM sync_state;
+SELECT source_id, COUNT(*) AS files_tracked, MAX(synced_at) AS last_sync
+FROM chat_sync_state
+GROUP BY source_id
+ORDER BY last_sync DESC;
 ```
