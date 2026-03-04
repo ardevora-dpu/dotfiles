@@ -35,6 +35,7 @@ Load one phase reference at a time.
 
 - Never auto-merge. Use `AskUserQuestion` for explicit approval.
 - Idempotent runs: reuse/update existing promotion PR if one exists.
+- Start with `update-guard promote status`; if status is `clean`, stop and report "no promotion needed".
 - Deterministic classification lives in `update-guard promote plan` (no shell path bucketing in markdown).
 - Plan selection contract: CLI writes `selected_paths_initial`; interactive triage writes `selected_paths_final`.
 - Persist machine-readable artefacts under `workspaces/timon/promotion-artifacts/<run-id>/`:

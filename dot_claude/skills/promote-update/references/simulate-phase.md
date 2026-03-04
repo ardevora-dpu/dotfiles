@@ -22,6 +22,12 @@ git rev-parse --verify origin/jeremy/checkpoints/live
 RUN_ID=$(date -u +%Y%m%d-%H%M%S) && ARTIFACT_DIR="$(pwd)/workspaces/timon/promotion-artifacts/${RUN_ID}" && mkdir -p "$ARTIFACT_DIR" && echo "$ARTIFACT_DIR"
 ```
 Capture the echoed absolute path and use it as a literal in all subsequent Bash calls.
+5. Run drift bell (fast path):
+```bash
+uv run python -m research.update_guard.cli promote status --json > "ARTIFACT_DIR/promotion-status.json"
+```
+
+If `promotion-status.json` reports `"status": "clean"`, stop and report "no promotion needed before /update".
 
 ## Run faithful simulation (deterministic)
 
