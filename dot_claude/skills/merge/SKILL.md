@@ -32,6 +32,7 @@ Now, **you draft the changelog at merge time** — faster, more accurate, human-
 3. Draft changelog → propose Highlights + Technical bullets
 4. Refine → Timon edits/approves the draft
 5. Execute → commit changelog, merge PR, notify Jeremy (optional), cleanup
+6. Dotfiles check → verify pending dotfiles branch/PR state and ask whether to merge/create there too
 ```
 
 ---
@@ -276,11 +277,61 @@ If "Skip" — move on.
 ✓ PR #235 merged (squash)
 ✓ Remote branch auto-deleted by GitHub
 ✓ Jeremy notified on ARD-173        ← only if sent
+✓ Dotfiles check: no pending dotfiles PR/branch merge work   ← or summary of action taken
 
 Next /update will show:
   Highlights: "Reliable changelog with smart first-run detection"
   Technical: 2 items
 ```
+
+### 5.6 Dotfiles merge-state check (always)
+
+After handling the main repo PR, **always** inspect dotfiles so we do not forget pending user-level harness merges.
+
+```bash
+DOTFILES_REPO="$(chezmoi source-path 2>/dev/null || echo "$HOME/.local/share/chezmoi")"
+
+if [ -d "$DOTFILES_REPO/.git" ]; then
+  DOT_BRANCH="$(git -C "$DOTFILES_REPO" rev-parse --abbrev-ref HEAD)"
+  DOT_DIRTY_COUNT="$(git -C "$DOTFILES_REPO" status --porcelain | wc -l | tr -d ' ')"
+
+  # Best-effort ahead/behind signal
+  git -C "$DOTFILES_REPO" fetch origin main --quiet || true
+  DOT_AHEAD_MAIN="$(git -C "$DOTFILES_REPO" rev-list --count origin/main..HEAD 2>/dev/null || echo 0)"
+
+  # Open PR on the current dotfiles branch (if any)
+  DOT_PR_JSON="$(cd "$DOTFILES_REPO" && gh pr list --head "$DOT_BRANCH" --state open --json number,title,url --jq '.[0]' 2>/dev/null)"
+fi
+```
+
+Interpret and act:
+
+1. **If open dotfiles PR exists**:
+   - Present: branch, PR number/title/url, dirty count.
+   - Ask Timon via `AskUserQuestion`:
+     - "Dotfiles PR #{N} on `{DOT_BRANCH}` is open. Merge it now?"
+     - Options: **Merge now** / **Skip for now**
+   - If "Merge now", run:
+   ```bash
+   cd "$DOTFILES_REPO" && gh pr merge "$DOT_PR_NUMBER" --squash --admin
+   ```
+
+2. **If no open PR, but branch is non-main and ahead of main**:
+   - Present: branch, `ahead_of_main={DOT_AHEAD_MAIN}`, dirty count.
+   - Ask Timon via `AskUserQuestion`:
+     - "Dotfiles branch `{DOT_BRANCH}` has commits ahead of main and no open PR. Create PR now?"
+     - Options: **Create PR now** / **Skip for now**
+   - If "Create PR now", run:
+   ```bash
+   cd "$DOTFILES_REPO" && gh pr create --fill
+   ```
+   - Then re-check open PR and offer merge as in step 1.
+
+3. **If branch is main (or not ahead) and no open PR**:
+   - Report "no pending dotfiles merge work".
+
+4. **If dirty working tree (`DOT_DIRTY_COUNT > 0`)**:
+   - Include a warning in the summary so uncommitted dotfiles changes are not silently forgotten.
 
 ---
 
