@@ -135,14 +135,19 @@ LIMIT 50;
 
 ## 7) Search Tool Inputs
 
-`tool_input` is jsonb — cast to text for ILIKE search.
+`tool_input` lives on `chat_records_enriched` for rows with `tool_name_used`.
+Cast to text for `ILIKE` probes.
 
 ```sql
-SELECT t.session_id, t.user_name, t.timestamp, t.tool_name,
+SELECT t.session_id, t.user_name, t.timestamp, t.tool_name_used AS tool_name,
        LEFT(t.tool_input::text, 300) AS input_preview
-FROM chat_tool_usage t
-WHERE t.timestamp >= '2026-01-01'
-  AND t.tool_name = 'Bash'
+FROM chat_records_enriched t
+JOIN chat_sessions_mat s
+  ON s.source_id = t.source_id
+ AND s.session_id = t.session_id
+WHERE s.session_kind = 'main'
+  AND t.timestamp >= '2026-01-01'
+  AND t.tool_name_used = 'Bash'
   AND t.tool_input::text ILIKE '%sec_filing%'
 ORDER BY t.timestamp ASC
 LIMIT 30;
@@ -151,50 +156,39 @@ LIMIT 30;
 Search by SQL query content (auto-extracted for SQL tools):
 
 ```sql
-SELECT t.session_id, t.user_name, t.timestamp, t.tool_name,
+SELECT t.session_id, t.user_name, t.timestamp, t.tool_name_used AS tool_name,
        LEFT(t.sql_query, 300) AS sql_preview
-FROM chat_tool_usage t
-WHERE t.timestamp >= '2026-01-01'
+FROM chat_records_enriched t
+JOIN chat_sessions_mat s
+  ON s.source_id = t.source_id
+ AND s.session_id = t.session_id
+WHERE s.session_kind = 'main'
+  AND t.timestamp >= '2026-01-01'
   AND t.sql_query IS NOT NULL
   AND t.sql_query ILIKE '%SCREEN_WEEKLY%'
 ORDER BY t.timestamp DESC
 LIMIT 20;
 ```
 
-## 8) Link Tool Calls to Results
+## 8) Link Tool Calls to Result Messages
 
-Prefer `message_id` join when present; it is direct and reliable.
+Link tool-call rows (`tool_name_used`) to result payload messages by
+`source_id + session_id + tool_use_id`.
 
 ```sql
 SELECT
-  t.tool_name,
+  t.tool_name_used AS tool_name,
   t.user_name,
   t.timestamp AS tool_called_at,
   LEFT(COALESCE(t.sql_query, ''), 200) AS sql_preview,
   LEFT(COALESCE(m.content_text, ''), 300) AS result_preview
-FROM chat_tool_usage t
-LEFT JOIN chat_messages m
-  ON m.id = t.message_id
-WHERE t.timestamp >= now() - interval '30 days'
-ORDER BY t.timestamp DESC
-LIMIT 100;
-```
-
-Fallback for older rows where `message_id` is null:
-
-```sql
-SELECT
-  t.tool_name,
-  t.user_name,
-  t.timestamp AS tool_called_at,
-  LEFT(COALESCE(t.sql_query, ''), 200) AS sql_preview,
-  LEFT(COALESCE(m.content_text, ''), 300) AS result_preview
-FROM chat_tool_usage t
-LEFT JOIN chat_messages m
+FROM chat_records_enriched t
+LEFT JOIN chat_messages_agent_v m
   ON m.source_id = t.source_id
+ AND m.session_id = t.session_id
  AND m.tool_use_id = t.tool_use_id
-WHERE t.message_id IS NULL
-  AND t.timestamp >= now() - interval '30 days'
+WHERE t.timestamp >= now() - interval '30 days'
+  AND t.tool_name_used IS NOT NULL
 ORDER BY t.timestamp DESC
 LIMIT 100;
 ```
@@ -204,22 +198,27 @@ LIMIT 100;
 ```sql
 WITH base_sessions AS (
   SELECT source_id, session_id, started_at, message_count
-  FROM chat_sessions
-  WHERE session_kind = 'main'
-    AND started_at >= now() - interval '7 days'
+  FROM chat_sessions_agent_v
+  WHERE started_at >= now() - interval '7 days'
 ),
 msg_hits AS (
   SELECT m.source_id, m.session_id, COUNT(*)::int AS msg_hits
-  FROM chat_messages m
+  FROM chat_messages_agent_v m
   WHERE m.content_text ILIKE '%RMBS-US%'
   GROUP BY m.source_id, m.session_id
 ),
 tool_hits AS (
   SELECT t.source_id, t.session_id, COUNT(*)::int AS tool_hits
-  FROM chat_tool_usage t
-  WHERE t.file_path ILIKE '%RMBS-US%'
-     OR t.tool_input::text ILIKE '%RMBS-US%'
+  FROM chat_records_enriched t
+  JOIN chat_sessions_mat s
+    ON s.source_id = t.source_id
+   AND s.session_id = t.session_id
+  WHERE s.session_kind = 'main'
+    AND t.tool_name_used IS NOT NULL
+    AND (
+         t.tool_input::text ILIKE '%RMBS-US%'
      OR COALESCE(t.sql_query, '') ILIKE '%RMBS-US%'
+    )
   GROUP BY t.source_id, t.session_id
 )
 SELECT

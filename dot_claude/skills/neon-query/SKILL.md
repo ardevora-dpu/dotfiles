@@ -45,9 +45,9 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 |------|---------------------|-----|
 | List sessions, check activity | `chat_sessions_agent_v` | Lightweight, pre-aggregated counters |
 | Scan messages without full text | `chat_messages_agent_light_v` | Has `content_preview` (200 chars), avoids TOAST |
-| Ranked message search | `chat_messages` + `chat_sessions_agent_v` | `BM25`/`FTS` indexes on base table |
+| Ranked message search | `chat_messages_agent_v` + `chat_sessions_agent_v` | `BM25`/`FTS` on enriched projections |
 | Search what a user asked | `chat_user_prompts_agent_v` | Pre-filtered to `human_user_prompt` |
-| Search tool calls | `chat_tool_usage` | Includes `tool_fts`, trigram index on `tool_input::text` |
+| Search tool calls | `chat_records_enriched` + `chat_sessions_mat` | Includes `tool_name_used`, `tool_input`, `sql_query` |
 | System events / token counts | `chat_events_agent_v` | Token usage, event timeline |
 
 **Critical:** `chat_messages_agent_light_v` does **NOT** include `content_text`. Use `chat_messages_agent_v` for FTS/ILIKE.
@@ -57,11 +57,11 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 | Want this? | Correct column | On which view/table |
 |------------|----------------|---------------------|
 | Session summary | `session_summary` | `chat_sessions_agent_v` |
-| Message text (full) | `content_text` or `content` | `chat_messages`, `chat_messages_agent_v`, `chat_user_prompts_agent_v` |
+| Message text (full) | `content_text` or `content` | `chat_messages_agent_v`, `chat_user_prompts_agent_v` |
 | Message preview | `content_preview` or `content` | `chat_messages_agent_light_v` |
 | Message role | `record_type` or `role` | All message views |
-| Tool input text search | `tool_input::text` | `chat_tool_usage` |
-| Tool SQL query | `sql_query` | `chat_tool_usage` |
+| Tool input text search | `tool_input::text` | `chat_records_enriched` |
+| Tool SQL query | `sql_query` | `chat_records_enriched` |
 | Last activity timestamp | `activity_at` | `chat_sessions_agent_v` |
 | Session owner | `user_name` | All tables and views |
 
@@ -87,7 +87,7 @@ SELECT
   m.timestamp,
   LEFT(m.content_text, 220) AS preview,
   paradedb.score(m.id) AS score
-FROM public.chat_messages m
+FROM public.chat_messages_agent_v m
 JOIN public.chat_sessions_agent_v s
   ON s.source_id = m.source_id
  AND s.session_id = m.session_id
@@ -105,7 +105,7 @@ SELECT
   m.timestamp,
   LEFT(m.content_text, 220) AS preview,
   ts_rank_cd(m.content_fts, websearch_to_tsquery('english', 'workflow timeout token usage')) AS score
-FROM public.chat_messages m
+FROM public.chat_messages_agent_v m
 JOIN public.chat_sessions_agent_v s
   ON s.source_id = m.source_id
  AND s.session_id = m.session_id
@@ -120,7 +120,7 @@ SELECT
   m.user_name,
   m.timestamp,
   LEFT(m.content_text, 220) AS preview
-FROM public.chat_messages m
+FROM public.chat_messages_agent_v m
 JOIN public.chat_sessions_agent_v s
   ON s.source_id = m.source_id
  AND s.session_id = m.session_id
@@ -134,13 +134,15 @@ SELECT
   t.session_id,
   t.user_name,
   t.timestamp,
-  t.tool_name,
+  t.tool_name_used AS tool_name,
   LEFT(t.tool_input::text, 220) AS tool_input_preview
-FROM public.chat_tool_usage t
-JOIN public.chat_sessions_agent_v s
+FROM public.chat_records_enriched t
+JOIN public.chat_sessions_mat s
   ON s.source_id = t.source_id
  AND s.session_id = t.session_id
-WHERE s.started_at >= now() - interval '30 days'
+WHERE s.session_kind = 'main'
+  AND t.tool_name_used IS NOT NULL
+  AND t.timestamp >= now() - interval '30 days'
   AND t.tool_input::text ILIKE '%RMBS-US%'
 ORDER BY t.timestamp DESC
 LIMIT 20;
@@ -148,8 +150,9 @@ LIMIT 20;
 
 ## Fast Gotchas
 
-- Table names are `chat_sessions`, `chat_messages`, `chat_tool_usage`, `chat_events`, plus `chat_sync_state`.
-- Views are `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_messages_agent_light_v`, `chat_user_prompts_agent_v`, `chat_events_agent_v`.
+- Primary ingest table is `chat_raw_records`.
+- Projection/materialised tables are `chat_records_enriched` and `chat_sessions_mat`.
+- Agent query views are `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_messages_agent_light_v`, `chat_user_prompts_agent_v`, `chat_events_agent_v`.
 - Message timestamp is `timestamp` (or alias `created_at` on views).
 - Session sync column is `synced_at`, not `updated_at`.
 - `thinking_config` and `tool_input` are `jsonb`.
@@ -161,8 +164,8 @@ LIMIT 20;
 
 - Schema source of truth:
   - `scripts/sync/sql/000_schema_bootstrap.sql`
+  - `scripts/sync/sql/005_raw_projections.sql`
   - `scripts/sync/sql/010_search_quality.sql`
-  - `scripts/sync/sql/030_tool_result_text_backfill.sql`
 
 ## Quick Health Check
 

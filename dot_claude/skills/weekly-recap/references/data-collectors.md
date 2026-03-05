@@ -228,7 +228,7 @@ Parameters:
     SELECT session_id, started_at::date, message_count,
            sidechain_count, branch_count,
            LEFT(session_summary, 100) as summary
-    FROM search_sessions_agent_v
+    FROM chat_sessions_agent_v
     WHERE started_at >= '{start_date}'
     ORDER BY started_at DESC
 ```
@@ -237,12 +237,12 @@ Parameters:
 
 | Table | Purpose |
 |-------|---------|
-| `search_sessions_agent_v` | Agent-safe main-session metadata + workflow rollups (`git_branch`, `session_summary`, `branch_count`, `sidechain_count`, `active_duration_minutes`) |
-| `search_messages_agent_v` | Agent-safe full message stream for main sessions (`record_type`, `content_text`, `message_class`) |
-| `search_user_prompts_agent_v` | Agent-safe likely human prompts (`content_text`, `message_class`, `user_intent_fts`) |
-| `search_sessions` | Raw sessions (includes subagents and summary-only rows) |
-| `search_messages` | Raw message stream (includes tool_result payloads in `record_type='user'`) |
-| `search_tool_usage` | Tool calls made in sessions (`tool_name`, `tool_input`, `tool_use_id`, `sql_query`) |
+| `chat_sessions_agent_v` | Agent-safe main-session metadata + workflow rollups (`git_branch`, `session_summary`, `branch_count`, `sidechain_count`, `active_duration_minutes`) |
+| `chat_messages_agent_v` | Agent-safe full message stream for main sessions (`record_type`, `content_text`, `message_class`) |
+| `chat_user_prompts_agent_v` | Agent-safe likely human prompts (`content_text`, `message_class`, `user_intent_fts`) |
+| `chat_events_agent_v` | Agent-safe event stream (`event_type`, token fields, payload_json) |
+| `chat_sessions_mat` | Session materialised view including `subagent` and `summary_only` rows |
+| `chat_records_enriched` | Enriched record surface (includes `tool_name_used`, `tool_input`, `sql_query`) |
 
 **Workflow Metadata (use these for deeper analysis):**
 
@@ -254,13 +254,13 @@ Parameters:
 | `session_summary` | Auto-generated summary for quick understanding |
 | `active_duration_minutes` | Gap-capped active time estimate for session effort |
 | `thinking_config` | Extended thinking usage |
-| `tool_use_id` | Links tool results to calls (join `search_messages` ↔ `search_tool_usage`) |
+| `tool_use_id` | Links tool results to calls in `chat_records_enriched` |
 
 **Sample deep-dive query:**
 
 ```sql
 SELECT LEFT(content_text, 500) as preview, record_type, is_sidechain
-FROM search_messages_agent_v
+FROM chat_messages_agent_v
 WHERE session_id = '{session_id}'
 ORDER BY timestamp
 LIMIT 20
@@ -270,7 +270,7 @@ LIMIT 20
 
 ```sql
 SELECT session_id, sidechain_count, session_summary
-FROM search_sessions_agent_v
+FROM chat_sessions_agent_v
 WHERE started_at >= '{start_date}'
   AND sidechain_count > 5
 ORDER BY sidechain_count DESC
@@ -282,8 +282,10 @@ ORDER BY sidechain_count DESC
 SELECT s.session_id, s.started_at, s.git_branch,
        LEFT(m.content_text, 150) as prompt_preview,
        ts_rank(m.user_intent_fts, websearch_to_tsquery('english', 'valuation analyst')) as relevance
-FROM search_user_prompts_agent_v m
-JOIN search_sessions_agent_v s ON m.session_id = s.session_id
+FROM chat_user_prompts_agent_v m
+JOIN chat_sessions_agent_v s
+  ON m.source_id = s.source_id
+ AND m.session_id = s.session_id
 WHERE m.user_intent_fts @@ websearch_to_tsquery('english', 'valuation analyst')
   AND s.started_at >= '{start_date}'
 ORDER BY relevance DESC, m.timestamp DESC
@@ -335,7 +337,7 @@ Jeremy works on a dedicated branch. Check for uncommitted or recently pushed wor
 1. First, check Neon for his most recent active branch:
 ```sql
 SELECT DISTINCT git_branch
-FROM search_sessions_agent_v
+FROM chat_sessions_agent_v
 WHERE started_at >= '{start_date}' AND git_branch LIKE 'jeremy/%'
 ORDER BY started_at DESC LIMIT 1
 ```

@@ -220,13 +220,11 @@ SELECT
   session_id, started_at, ended_at, message_count,
   user_prompt_count, tool_call_count, distinct_tool_count,
   input_tokens_total, output_tokens_total,
-  active_duration_minutes, sidechain_count, cwd_short
-FROM search_sessions
+  active_duration_minutes, sidechain_count, cwd
+FROM chat_sessions_agent_v
 WHERE started_at > NOW() - INTERVAL '{period_days} days'
 ORDER BY started_at DESC
 ```
-Use `search_sessions` (raw table) for `user_prompt_count`, `tool_call_count`, `distinct_tool_count`, `input_tokens_total`, `output_tokens_total`. These columns do NOT exist on `search_sessions_agent_v`.
-
 Column is `started_at`, NOT `created_at`.
 
 **Query 2 — Ticker extraction:**
@@ -237,7 +235,7 @@ SELECT
   SUM(message_count) as messages,
   SUM(active_duration_minutes) as active_mins,
   MAX(started_at) as last_active
-FROM search_sessions_agent_v
+FROM chat_sessions_agent_v
 WHERE started_at > NOW() - INTERVAL '{period_days} days'
 GROUP BY ticker
 ORDER BY active_mins DESC
@@ -246,9 +244,11 @@ Note escape string prefix `E'...'` with double backslashes for literal backslash
 
 **Query 3 — What Jeremy typed:**
 ```sql
-SELECT s.cwd_short, m.content_text, m.timestamp
-FROM search_user_prompts_agent_v m
-JOIN search_sessions_agent_v s ON m.session_id = s.session_id
+SELECT s.cwd, m.content_text, m.timestamp
+FROM chat_user_prompts_agent_v m
+JOIN chat_sessions_agent_v s
+  ON m.source_id = s.source_id
+ AND m.session_id = s.session_id
 WHERE m.timestamp > NOW() - INTERVAL '{period_days} days'
   AND m.content_text NOT LIKE '%<task-notification>%'
 ORDER BY m.timestamp DESC
@@ -258,10 +258,15 @@ Column is `timestamp`, NOT `created_at`.
 
 **Query 4 — Tool usage:**
 ```sql
-SELECT tool_name, COUNT(*) as uses
-FROM search_tool_usage
-WHERE timestamp > NOW() - INTERVAL '{period_days} days'
-GROUP BY tool_name
+SELECT e.tool_name_used AS tool_name, COUNT(*) AS uses
+FROM chat_records_enriched e
+JOIN chat_sessions_mat s
+  ON e.source_id = s.source_id
+ AND e.session_id = s.session_id
+WHERE s.session_kind = 'main'
+  AND e.tool_name_used IS NOT NULL
+  AND e.timestamp > NOW() - INTERVAL '{period_days} days'
+GROUP BY e.tool_name_used
 ORDER BY uses DESC
 LIMIT 15
 ```
@@ -269,10 +274,10 @@ LIMIT 15
 **Key table routing:**
 | Use case | Table/view |
 |----------|-----------|
-| Rich session stats (prompt/token counts) | `search_sessions` (raw) |
-| Session-level with cwd/branch | `search_sessions_agent_v` |
-| User prompts (what Jeremy typed) | `search_user_prompts_agent_v` |
-| Tool usage counts | `search_tool_usage` |
+| Rich session stats (prompt/token counts) | `chat_sessions_agent_v` |
+| Session-level with cwd/branch | `chat_sessions_agent_v` |
+| User prompts (what Jeremy typed) | `chat_user_prompts_agent_v` |
+| Tool usage counts (tool names) | `chat_records_enriched` + `chat_sessions_mat` |
 
 Do not use semicolons at the end of SQL statements — they cause syntax errors in the Neon MCP.
 

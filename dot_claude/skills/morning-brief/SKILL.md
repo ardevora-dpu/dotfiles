@@ -168,12 +168,12 @@ CRITICAL: Always pass projectId: "shy-wildflower-46673345" to neon__run_sql.
 Database is neondb (do not pass databaseName).
 
 Steps:
-1. Query search_sessions for sessions in the period (column: started_at,
+1. Query `chat_sessions_agent_v` for sessions in the period (column: `started_at`,
    not created_at). Get user_prompt_count, tool_call_count, active_duration_minutes,
    sidechain_count, cwd, git_branch.
 2. Extract tickers from cwd using regex pattern.
-3. Query search_user_prompts_agent_v for what Jeremy actually typed.
-4. Query search_tool_usage for tool patterns.
+3. Query `chat_user_prompts_agent_v` for what Jeremy actually typed.
+4. Query `chat_records_enriched` joined to `chat_sessions_mat` for tool patterns (`tool_name_used`), filtered to `session_kind='main'`.
 
 Return structured markdown:
 - Session count and total active duration
@@ -305,4 +305,4 @@ Repeated here for attention — these are non-negotiable:
 5. **Metadata-first for email** — never fetch body content unless explicitly asked
 6. **British spelling throughout** the output
 7. **Laura's calendar** discovered dynamically from `gcal_list_calendars`, not hardcoded
-8. **`search_sessions` column is `started_at`** not `created_at` for Neon
+8. **Neon session time column is `started_at`** not `created_at`

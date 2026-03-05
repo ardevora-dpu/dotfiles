@@ -230,11 +230,11 @@ Typical pattern:
 
 Jeremy's research is captured across three sources that should be combined:
 
-1. **Neon sessions** — Chat logs from Claude Code sessions. Query `search_sessions` and `search_messages` tables. Shows what questions he asked, what stocks he explored, how his thinking evolved.
+1. **Neon sessions** — Chat logs from Claude Code sessions. Query `chat_sessions_agent_v` and `chat_messages_agent_v` (plus `chat_user_prompts_agent_v` for intent). Shows what questions he asked, what stocks he explored, how his thinking evolved.
 
 2. **Evidence folder** — `workspaces/jeremy/evidence/**/*.md`. Structured research artifacts organized by review period → sector → stock → analysis type. Look for OIC development files, peer analysis, regime charts.
 
-3. **His branch** — Discover dynamically: first check Neon `search_sessions.git_branch` for his most recent active branch, then fall back to `git branch -r | grep jeremy/` and pick the most recently updated. Check what files changed, what research he's persisted.
+3. **His branch** — Discover dynamically: first check Neon `chat_sessions_agent_v.git_branch` for his most recent active branch, then fall back to `git branch -r | grep jeremy/` and pick the most recently updated. Check what files changed, what research he's persisted.
 
 **What to capture:**
 - Methodology evolution (how his process is changing)
