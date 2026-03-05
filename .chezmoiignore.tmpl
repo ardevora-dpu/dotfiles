@@ -9,9 +9,10 @@ dot_claude/statusline-command.sh
 
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- $isJeremy := or (eq .chezmoi.username "jeremy") (eq .chezmoi.username "jlang") (eq .chezmoi.username "AzureAD\\JeremyLang") -}}
+{{- $isJack := or (eq .chezmoi.username "jack") (eq .chezmoi.username "jalgeo") (eq .chezmoi.username "AzureAD\\JackAlgeo") -}}
 
-{{- /* Claude user settings are only managed for Timon and Jeremy profiles. */ -}}
-{{- if and (not $isTimon) (not $isJeremy) }}
+{{- /* Claude user settings are only managed for Timon, Jeremy, and Jack profiles. */ -}}
+{{- if and (not $isTimon) (not $isJeremy) (not $isJack) }}
 dot_claude/modify_settings.json.ps1
 dot_claude/statusline-command.sh
 {{- end }}
