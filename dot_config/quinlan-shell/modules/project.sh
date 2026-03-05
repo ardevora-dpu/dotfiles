@@ -45,6 +45,9 @@ _quinlan_workspace_context_dir() {
         jeremy|jeremylang)
             printf '%s' "workspaces/jeremy"
             ;;
+        jack|jalgeo|*algeo*)
+            printf '%s' "workspaces/jack"
+            ;;
         *)
             return 1
             ;;
