@@ -5,6 +5,7 @@ compile-helpers.ps1
 .claude/settings.json.ps1
 dot_claude/modify_settings.json.ps1
 dot_claude/statusline-command.sh
+modify_dot_claude.json.ps1
 {{- end }}
 
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
@@ -15,6 +16,12 @@ dot_claude/statusline-command.sh
 {{- if and (not $isTimon) (not $isJeremy) (not $isJack) }}
 dot_claude/modify_settings.json.ps1
 dot_claude/statusline-command.sh
+modify_dot_claude.json.ps1
+{{- end }}
+
+{{- /* User-level MCP servers: Timon + Jack only (Jeremy does not need otter). */ -}}
+{{- if and (not $isTimon) (not $isJack) }}
+modify_dot_claude.json.ps1
 {{- end }}
 
 {{- /* Timon-only payload: do not deploy for other users (including Jeremy). */ -}}
