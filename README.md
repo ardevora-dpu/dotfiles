@@ -24,6 +24,7 @@ This repository is the source of truth for home-directory shell/runtime config.
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
 | `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
+| `dot_agents/symlink_skills` | `~/.agents/skills` | WSL Codex global skills mirror to `~/.claude/skills` (Timon only) |
 | `run_once_compile-helpers.ps1` | one-time run | Build helper executables on Windows |
 | `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper source |
 
@@ -45,6 +46,8 @@ Canonical project context for Timon is:
 - `quinlan/workspaces/timon/CLAUDE.md` (Timon-specific context)
 
 Codex and Claude should be launched from `workspaces/timon` when working in Quinlan.
+
+For Timon in WSL, Codex global skills are exposed via `~/.agents/skills -> ~/.claude/skills`, so user-scoped Claude skills are available to Codex without duplicating the skill trees.
 
 ## Quick Start
 

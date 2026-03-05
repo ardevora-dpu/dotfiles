@@ -10,6 +10,11 @@ compile-helpers.ps1
 .claude/statusline-command.sh
 {{- end }}
 
+{{- /* Codex global skills link is only needed on WSL/Linux. */ -}}
+{{- if eq .chezmoi.os "windows" }}
+dot_agents/**
+{{- end }}
+
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- $isJeremy := or (eq .chezmoi.username "jeremy") (eq .chezmoi.username "jlang") (eq .chezmoi.username "AzureAD\\JeremyLang") -}}
 {{- $isJack := or (eq .chezmoi.username "jack") (eq .chezmoi.username "jalgeo") (eq .chezmoi.username "AzureAD\\JackAlgeo") -}}
@@ -33,6 +38,7 @@ compile-helpers.ps1
 {{- if not $isTimon }}
 dot_claude/CLAUDE.md
 dot_claude/skills/**
+dot_agents/**
 dot_codex/**
 dot_config/quinlan-shell/modules/codex-wsl.sh
 dot_config/quinlan-shell/modules/gemini.sh
