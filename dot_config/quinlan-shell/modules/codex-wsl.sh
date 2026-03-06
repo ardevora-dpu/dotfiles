@@ -220,7 +220,7 @@ _codex_wsl_ensure_branch_on_origin() {
         return 0
     fi
 
-    echo "[codex-wsl] Pushing '$branch' to origin so the WSL clone can check it out..."
+    echo "[codex-wsl] Pushing '$branch' to origin so the WSL clone can check it out..." >&2
     git -C "$repo_root" push -u origin "$branch" || {
         echo "[codex-wsl] Failed to push '$branch' to origin." >&2
         return 1
@@ -244,7 +244,7 @@ _codex_wsl_ensure_clone() {
 
     clone_exists="$(_quinlan_wsl_bash "if [ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]; then echo yes; else echo no; fi" 2>/dev/null)"
     if [[ "$clone_exists" != "yes" ]]; then
-        echo "[codex-wsl] Cloning '$repo_name' into WSL: $wsl_path"
+        echo "[codex-wsl] Cloning '$repo_name' into WSL: $wsl_path" >&2
         _quinlan_wsl_bash "mkdir -p '$wsl_root' && git clone '$origin_url' '$wsl_path' && cd '$wsl_path' && git config core.autocrlf input" || {
             echo "[codex-wsl] Failed to clone '$repo_name' into WSL." >&2
             return 1
@@ -259,17 +259,17 @@ _codex_wsl_ensure_clone() {
         return 1
     fi
 
-    _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin" || return 1
+    _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin >/dev/null" || return 1
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
-        echo "[codex-wsl] Aligning WSL clone branch: $wsl_path -> $branch"
-        _quinlan_wsl_bash "cd '$wsl_path' && git checkout '$branch' 2>/dev/null || git checkout -b '$branch' 'origin/$branch'" || return 1
+        echo "[codex-wsl] Aligning WSL clone branch: $wsl_path -> $branch" >&2
+        _quinlan_wsl_bash "cd '$wsl_path' && (git checkout '$branch' >/dev/null 2>&1 || git checkout -b '$branch' 'origin/$branch' >/dev/null 2>&1)" || return 1
         wsl_branch="$branch"
     fi
 
     if [[ "${wsl_dirty:-0}" == "0" ]]; then
-        _quinlan_wsl_bash "cd '$wsl_path' && git pull --ff-only" || return 1
+        _quinlan_wsl_bash "cd '$wsl_path' && git pull --ff-only >/dev/null" || return 1
     elif [[ "$wsl_branch" == "$branch" ]]; then
-        echo "[codex-wsl] WSL clone has local changes on '$branch'; skipping auto-pull."
+        echo "[codex-wsl] WSL clone has local changes on '$branch'; skipping auto-pull." >&2
     fi
 
     _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
