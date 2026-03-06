@@ -400,7 +400,7 @@ _quinlan_ensure_wsl_worktree() {
     local wsl_path="$1"
     local branch="$2"
     local main_repo="$3"
-    local wsl_user wsl_main wsl_branch
+    local wsl_user wsl_main wsl_branch wsl_dirty
 
     _quinlan_require_command wsl || return 1
     _quinlan_require_command git || return 1
@@ -435,18 +435,15 @@ _quinlan_ensure_wsl_worktree() {
 
     wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
-        echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
-        # Stash dirty state so checkout succeeds, then pop to preserve Codex work.
-        # Only pop if we actually created a stash entry (avoid popping older unrelated stashes).
-        local pre_stash_count
-        pre_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
-        _quinlan_wsl_bash "cd '$wsl_path' && git stash --include-untracked -q" 2>/dev/null || true
-        _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
-        local post_stash_count
-        post_stash_count="$(_quinlan_wsl_bash "cd '$wsl_path' && git stash list | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
-        if [[ "$post_stash_count" -gt "$pre_stash_count" ]]; then
-            _quinlan_wsl_bash "cd '$wsl_path' && git stash pop -q" 2>/dev/null || true
+        wsl_dirty="$(_quinlan_wsl_bash "cd '$wsl_path' && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+        if [[ "${wsl_dirty:-0}" != "0" ]]; then
+            echo "[codex-wsl] Refusing to realign dirty WSL worktree: $wsl_path (${wsl_branch:-detached} -> $branch)" >&2
+            echo "[codex-wsl] Commit, stash, or clean the WSL checkout yourself before rerunning dev/c." >&2
+            return 1
         fi
+
+        echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
+        _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
     fi
 
     _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
@@ -497,6 +494,10 @@ dev() {
     if (( $# > 0 )) && [[ "$1" == "--no-sync" ]]; then
         skip_sync=1
         shift
+    fi
+    if (( $# > 0 )) && [[ "$1" == "2" ]]; then
+        echo "[codex-wsl] 'dev 2' is obsolete; use 'dev' for the two-pane Claude Code | Codex layout." >&2
+        return 1
     fi
     if (( $# > 0 )); then
         echo "[codex-wsl] Usage: dev [--no-sync]" >&2

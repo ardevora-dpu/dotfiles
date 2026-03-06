@@ -201,6 +201,6 @@ Include any warnings or errors encountered during processing.
 ## What This Skill Does NOT Do
 
 - **Run inside the spawned session** — it orchestrates from the current (main) session
-- **Replace `dev 2`** — it delegates to `dev 2` for the actual layout and tool startup
-- **Manage WSL worktrees** — `dev 2` handles WSL mirroring internally
+- **Start the layout itself** — it delegates to `dev` for the actual layout and tool startup
+- **Manage WSL worktrees** — `dev` handles WSL mirroring internally
 - **Close or clean up sessions** — use `git worktree remove` when done
