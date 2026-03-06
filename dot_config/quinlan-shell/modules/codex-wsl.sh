@@ -1,4 +1,4 @@
-# Timon-only Codex launch commands for Windows -> WSL worktree parity.
+# Timon-only Codex launch commands for Windows -> WSL worktree/clone parity.
 
 _quinlan_require_command() {
     local cmd="$1"
@@ -35,22 +35,59 @@ _quinlan_wsl_user() {
     printf '%s' "$_QUINLAN_WSL_USER"
 }
 
-_quinlan_current_worktree_name() {
-    local repo_root win_dir
+_codex_wsl_repo_root() {
+    local repo_root
     repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
     if [[ -z "$repo_root" ]]; then
         echo "[codex-wsl] Could not resolve git worktree root from: $PWD" >&2
         return 1
     fi
 
-    win_dir="$(basename "$repo_root")"
+    printf '%s' "$repo_root"
+}
 
-    if [[ ! "$win_dir" == quinlan* ]]; then
+_codex_wsl_repo_name() {
+    local repo_root="${1:-}"
+    if [[ -z "$repo_root" ]]; then
+        repo_root="$(_codex_wsl_repo_root)" || return 1
+    fi
+
+    printf '%s' "${repo_root##*/}"
+}
+
+_codex_wsl_is_quinlan_repo() {
+    local repo_name="${1:-}"
+    if [[ -z "$repo_name" ]]; then
+        repo_name="$(_codex_wsl_repo_name)" || return 1
+    fi
+
+    [[ "$repo_name" == quinlan* ]]
+}
+
+_quinlan_current_worktree_name() {
+    local repo_root win_dir
+    repo_root="$(_codex_wsl_repo_root)" || return 1
+    win_dir="$(_codex_wsl_repo_name "$repo_root")"
+
+    if ! _codex_wsl_is_quinlan_repo "$win_dir"; then
         echo "[codex-wsl] Git worktree root is not a quinlan worktree: $win_dir" >&2
         return 1
     fi
 
     printf '%s' "$win_dir"
+}
+
+_codex_wsl_projects_root() {
+    local wsl_user
+    wsl_user="$(_quinlan_wsl_user)" || return 1
+    printf '/home/%s/projects' "$wsl_user"
+}
+
+_codex_wsl_clone_path() {
+    local repo_name="$1"
+    local wsl_root
+    wsl_root="$(_codex_wsl_projects_root)" || return 1
+    printf '%s/%s' "$wsl_root" "$repo_name"
 }
 
 _quinlan_wsl_worktree_path() {
@@ -173,6 +210,70 @@ _quinlan_sync_dotfiles_if_needed() {
         echo "[codex-wsl] WSL chezmoi sync failed. Use 'dev --no-sync' to bypass once." >&2
         return 1
     }
+}
+
+_codex_wsl_ensure_branch_on_origin() {
+    local repo_root="$1"
+    local branch="$2"
+
+    if git -C "$repo_root" ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "[codex-wsl] Pushing '$branch' to origin so the WSL clone can check it out..."
+    git -C "$repo_root" push -u origin "$branch" || {
+        echo "[codex-wsl] Failed to push '$branch' to origin." >&2
+        return 1
+    }
+}
+
+_codex_wsl_ensure_clone() {
+    local repo_root="$1"
+    local repo_name="$2"
+    local branch="$3"
+    local origin_url wsl_root wsl_path clone_exists wsl_branch wsl_dirty
+
+    origin_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null)" || {
+        echo "[codex-wsl] No 'origin' remote configured for $repo_root." >&2
+        return 1
+    }
+    wsl_root="$(_codex_wsl_projects_root)" || return 1
+    wsl_path="$(_codex_wsl_clone_path "$repo_name")" || return 1
+
+    _codex_wsl_ensure_branch_on_origin "$repo_root" "$branch" || return 1
+
+    clone_exists="$(_quinlan_wsl_bash "if [ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]; then echo yes; else echo no; fi" 2>/dev/null)"
+    if [[ "$clone_exists" != "yes" ]]; then
+        echo "[codex-wsl] Cloning '$repo_name' into WSL: $wsl_path"
+        _quinlan_wsl_bash "mkdir -p '$wsl_root' && git clone '$origin_url' '$wsl_path' && cd '$wsl_path' && git config core.autocrlf input" || {
+            echo "[codex-wsl] Failed to clone '$repo_name' into WSL." >&2
+            return 1
+        }
+    fi
+
+    wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
+    wsl_dirty="$(_quinlan_wsl_bash "cd '$wsl_path' && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+    if [[ "${wsl_dirty:-0}" != "0" && -n "$wsl_branch" && "$wsl_branch" != "$branch" ]]; then
+        echo "[codex-wsl] Refusing to realign dirty WSL clone: $wsl_path (${wsl_branch} -> $branch)" >&2
+        echo "[codex-wsl] Commit, stash, or clean the WSL checkout yourself before rerunning dev/c." >&2
+        return 1
+    fi
+
+    _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin" || return 1
+    if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
+        echo "[codex-wsl] Aligning WSL clone branch: $wsl_path -> $branch"
+        _quinlan_wsl_bash "cd '$wsl_path' && git checkout '$branch' 2>/dev/null || git checkout -b '$branch' 'origin/$branch'" || return 1
+        wsl_branch="$branch"
+    fi
+
+    if [[ "${wsl_dirty:-0}" == "0" ]]; then
+        _quinlan_wsl_bash "cd '$wsl_path' && git pull --ff-only" || return 1
+    elif [[ "$wsl_branch" == "$branch" ]]; then
+        echo "[codex-wsl] WSL clone has local changes on '$branch'; skipping auto-pull."
+    fi
+
+    _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
+    printf '%s' "$wsl_path"
 }
 
 # shellcheck disable=SC2120 # Default parameters are intentional — callers use defaults
@@ -453,27 +554,34 @@ c() {
     _quinlan_require_command git || return 1
     _quinlan_require_command wsl || return 1
 
-    local win_dir branch wsl_path wsl_context_path args main_repo
-    win_dir="$(_quinlan_current_worktree_name)" || return 1
+    local repo_root repo_name win_dir branch wsl_path wsl_context_path args main_repo
+    repo_root="$(_codex_wsl_repo_root)" || return 1
+    repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
-    main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
+    main_repo="$repo_root"
 
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
     fi
 
-    wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
-    _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
-    wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
-    if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
-        echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
-        return 1
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        win_dir="$(_quinlan_current_worktree_name)" || return 1
+        wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
+        _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
+        wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
+        if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
+            echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
+            return 1
+        fi
+        _ensure_codex_mcp_timeouts
+        _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
+        _ensure_wsl_codex_project_doc_fallback
+        _ensure_codex_no_user_agents
+    else
+        wsl_path="$(_codex_wsl_ensure_clone "$repo_root" "$repo_name" "$branch")" || return 1
+        wsl_context_path="$wsl_path"
     fi
-    _ensure_codex_mcp_timeouts
-    _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
-    _ensure_wsl_codex_project_doc_fallback
-    _ensure_codex_no_user_agents
 
     args=""
     if (( $# > 0 )); then
@@ -481,7 +589,11 @@ c() {
     fi
 
     echo "Starting Codex in WSL: $wsl_context_path"
-    wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex --dangerously-bypass-approvals-and-sandbox${args}"
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex --dangerously-bypass-approvals-and-sandbox${args}"
+    else
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && codex --dangerously-bypass-approvals-and-sandbox${args}"
+    fi
 }
 
 dev() {
@@ -504,46 +616,55 @@ dev() {
         return 1
     fi
 
-    local branch win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
+    local branch repo_root repo_name win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
     if (( skip_sync == 0 )); then
         _quinlan_sync_dotfiles_if_needed || return 1
     fi
 
+    repo_root="$(_codex_wsl_repo_root)" || return 1
+    repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
-    main_repo="$(git rev-parse --show-toplevel 2>/dev/null)"
+    main_repo="$repo_root"
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
     fi
 
-    win_dir="$(_quinlan_current_worktree_name)" || return 1
-    wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
-    _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
-    wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
-    if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
-        echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
-        return 1
-    fi
-    claude_workspace="$main_repo/workspaces/timon"
-    if [[ ! -d "$claude_workspace" ]]; then
-        echo "[codex-wsl] Missing Timon workspace in Windows worktree: $claude_workspace" >&2
-        return 1
-    fi
-    _ensure_codex_mcp_timeouts
-    _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
-    _ensure_wsl_codex_project_doc_fallback
-    _ensure_codex_no_user_agents
-
-    # Copy Codex init prompt from Windows worktree to WSL if present.
-    # /start-session writes both prompt files to the Windows worktree root;
-    # dev handles the cross-boundary copy so callers don't need WSL paths.
-    local win_codex_prompt="$main_repo/.codex-init-prompt"
-    if [[ -f "$win_codex_prompt" ]]; then
-        if _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"; then
-            rm -f "$win_codex_prompt"
-        else
-            echo "[codex-wsl] Failed to copy Codex prompt to WSL; keeping $win_codex_prompt" >&2
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        win_dir="$(_quinlan_current_worktree_name)" || return 1
+        wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
+        _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
+        wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
+        if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
+            echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
+            return 1
         fi
+        claude_workspace="$main_repo/workspaces/timon"
+        if [[ ! -d "$claude_workspace" ]]; then
+            echo "[codex-wsl] Missing Timon workspace in Windows worktree: $claude_workspace" >&2
+            return 1
+        fi
+        _ensure_codex_mcp_timeouts
+        _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
+        _ensure_wsl_codex_project_doc_fallback
+        _ensure_codex_no_user_agents
+
+        # Copy Codex init prompt from Windows worktree to WSL if present.
+        # /start-session writes both prompt files to the Windows worktree root;
+        # dev handles the cross-boundary copy so callers don't need WSL paths.
+        local win_codex_prompt="$main_repo/.codex-init-prompt"
+        if [[ -f "$win_codex_prompt" ]]; then
+            if _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"; then
+                rm -f "$win_codex_prompt"
+            else
+                echo "[codex-wsl] Failed to copy Codex prompt to WSL; keeping $win_codex_prompt" >&2
+            fi
+        fi
+    else
+        win_dir="$repo_name"
+        wsl_path="$(_codex_wsl_ensure_clone "$repo_root" "$repo_name" "$branch")" || return 1
+        wsl_context_path="$wsl_path"
+        claude_workspace="$main_repo"
     fi
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
@@ -556,14 +677,22 @@ dev() {
     # as the initial prompt if found. Escaping is for the WSL bash shell
     # that receives this text via send-text.
     local codex_cmd
-    codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
+    else
+        codex_cmd="cd '$wsl_path' && source ~/.nvm/nvm.sh 2>/dev/null && codex --dangerously-bypass-approvals-and-sandbox"
+    fi
 
     local right_pane
     # MSYS_NO_PATHCONV prevents Git Bash from mangling the Linux path
     # (e.g. /home/chimern/... → C:/Program Files/Git/home/chimern/...).
     right_pane="$(MSYS_NO_PATHCONV=1 wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "$wsl_context_path")"
     local tab_label
-    tab_label="$(_quinlan_tab_label_from_worktree "$win_dir")"
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        tab_label="$(_quinlan_tab_label_from_worktree "$win_dir")"
+    else
+        tab_label="$win_dir"
+    fi
     wezterm cli set-tab-title --pane-id "$left_pane" "$tab_label" >/dev/null 2>&1 || true
 
     sleep 0.3
