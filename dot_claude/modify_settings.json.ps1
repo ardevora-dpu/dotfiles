@@ -35,11 +35,10 @@ if is_timon:
     # ARD451_PROFILE_TIMON
     data['autoUpdatesChannel'] = 'latest'
     data['model'] = 'opus'
-    plugins = data.get('enabledPlugins', [])
-    if not isinstance(plugins, list):
-        plugins = []
-    if 'pyright-lsp' not in plugins:
-        plugins.append('pyright-lsp')
+    plugins = data.get('enabledPlugins', {})
+    if not isinstance(plugins, dict):
+        plugins = {}
+    plugins['pyright-lsp@claude-plugins-official'] = True
     data['enabledPlugins'] = plugins
 elif is_jeremy:
     # ARD451_PROFILE_JEREMY

@@ -83,10 +83,6 @@ _codex_wsl_projects_root() {
     printf '/home/%s/projects' "$wsl_user"
 }
 
-_codex_wsl_bash_quote() {
-    printf '%q' "$1"
-}
-
 _codex_wsl_clone_path() {
     local repo_name="$1"
     local wsl_root
@@ -137,13 +133,11 @@ _quinlan_dotfiles_state_local() {
 _quinlan_dotfiles_state_wsl() {
     local repo="$1"
     local state
-    local quoted_repo
 
-    quoted_repo="$(_codex_wsl_bash_quote "$repo")"
-    state="$(_quinlan_wsl_bash "git -C ${quoted_repo} fetch origin >/dev/null 2>&1 && \
-        h=\$(git -C ${quoted_repo} rev-parse HEAD) && \
-        o=\$(git -C ${quoted_repo} rev-parse origin/main) && \
-        d=\$(git -C ${quoted_repo} status --porcelain | wc -l | tr -d '[:space:]') && \
+    state="$(_quinlan_wsl_bash "git -C '$repo' fetch origin >/dev/null 2>&1 && \
+        h=\$(git -C '$repo' rev-parse HEAD) && \
+        o=\$(git -C '$repo' rev-parse origin/main) && \
+        d=\$(git -C '$repo' status --porcelain | wc -l | tr -d '[:space:]') && \
         printf '%s|%s|%s' \"\$h\" \"\$o\" \"\$d\"" 2>/dev/null)" || return 1
     [[ -n "$state" ]] || return 1
 
@@ -168,7 +162,7 @@ _quinlan_sync_dotfiles_if_needed() {
 
     wsl_user="$(_quinlan_wsl_user)" || return 1
     wsl_repo="/home/$wsl_user/.local/share/chezmoi"
-    if ! _quinlan_wsl_bash "[ -d $(_codex_wsl_bash_quote "$wsl_repo/.git") ]"; then
+    if ! _quinlan_wsl_bash "[ -d '$wsl_repo/.git' ]"; then
         echo "[codex-wsl] Missing WSL chezmoi repo: $wsl_repo" >&2
         return 1
     fi
@@ -237,8 +231,7 @@ _codex_wsl_ensure_clone() {
     local repo_root="$1"
     local repo_name="$2"
     local branch="$3"
-    local origin_url wsl_root wsl_path clone_exists wsl_branch wsl_dirty existing_origin
-    local quoted_origin_url quoted_wsl_root quoted_wsl_path quoted_branch quoted_git_dir
+    local origin_url wsl_root wsl_path clone_exists wsl_branch wsl_dirty
 
     origin_url="$(git -C "$repo_root" remote get-url origin 2>/dev/null)" || {
         echo "[codex-wsl] No 'origin' remote configured for $repo_root." >&2
@@ -246,61 +239,40 @@ _codex_wsl_ensure_clone() {
     }
     wsl_root="$(_codex_wsl_projects_root)" || return 1
     wsl_path="$(_codex_wsl_clone_path "$repo_name")" || return 1
-    quoted_origin_url="$(_codex_wsl_bash_quote "$origin_url")"
-    quoted_wsl_root="$(_codex_wsl_bash_quote "$wsl_root")"
-    quoted_wsl_path="$(_codex_wsl_bash_quote "$wsl_path")"
-    quoted_branch="$(_codex_wsl_bash_quote "$branch")"
-    quoted_git_dir="$(_codex_wsl_bash_quote "$wsl_path/.git")"
-
-    clone_exists="$(_quinlan_wsl_bash "if [ -d ${quoted_git_dir} ] || [ -f ${quoted_git_dir} ]; then echo yes; else echo no; fi" 2>/dev/null)"
-    if [[ "$clone_exists" != "yes" ]]; then
-        _codex_wsl_ensure_branch_on_origin "$repo_root" "$branch" || return 1
-        echo "[codex-wsl] Cloning '$repo_name' into WSL: $wsl_path" >&2
-        _quinlan_wsl_bash "mkdir -p ${quoted_wsl_root} && git clone ${quoted_origin_url} ${quoted_wsl_path} && cd ${quoted_wsl_path} && git config core.autocrlf input" || {
-            echo "[codex-wsl] Failed to clone '$repo_name' into WSL." >&2
-            return 1
-        }
-    else
-        existing_origin="$(_quinlan_wsl_bash "cd ${quoted_wsl_path} && git remote get-url origin 2>/dev/null" 2>/dev/null | tr -d '\r')"
-        if [[ -z "$existing_origin" ]]; then
-            echo "[codex-wsl] Existing WSL clone at $wsl_path has no usable 'origin' remote." >&2
-            echo "[codex-wsl] Remove or fix that clone before rerunning dev/c." >&2
-            return 1
-        fi
-        if [[ "$existing_origin" != "$origin_url" ]]; then
-            echo "[codex-wsl] Existing WSL clone path is bound to a different origin:" >&2
-            echo "[codex-wsl]   path: $wsl_path" >&2
-            echo "[codex-wsl]   expected: $origin_url" >&2
-            echo "[codex-wsl]   found:    $existing_origin" >&2
-            echo "[codex-wsl] Remove or rename the WSL clone before rerunning dev/c." >&2
-            return 1
-        fi
-    fi
 
     _codex_wsl_ensure_branch_on_origin "$repo_root" "$branch" || return 1
 
-    wsl_branch="$(_quinlan_wsl_bash "cd ${quoted_wsl_path} && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
-    wsl_dirty="$(_quinlan_wsl_bash "cd ${quoted_wsl_path} && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+    clone_exists="$(_quinlan_wsl_bash "if [ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]; then echo yes; else echo no; fi" 2>/dev/null)"
+    if [[ "$clone_exists" != "yes" ]]; then
+        echo "[codex-wsl] Cloning '$repo_name' into WSL: $wsl_path" >&2
+        _quinlan_wsl_bash "mkdir -p '$wsl_root' && git clone '$origin_url' '$wsl_path' && cd '$wsl_path' && git config core.autocrlf input" || {
+            echo "[codex-wsl] Failed to clone '$repo_name' into WSL." >&2
+            return 1
+        }
+    fi
+
+    wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
+    wsl_dirty="$(_quinlan_wsl_bash "cd '$wsl_path' && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
     if [[ "${wsl_dirty:-0}" != "0" && -n "$wsl_branch" && "$wsl_branch" != "$branch" ]]; then
         echo "[codex-wsl] Refusing to realign dirty WSL clone: $wsl_path (${wsl_branch} -> $branch)" >&2
         echo "[codex-wsl] Commit, stash, or clean the WSL checkout yourself before rerunning dev/c." >&2
         return 1
     fi
 
-    _quinlan_wsl_bash "cd ${quoted_wsl_path} && git fetch origin >/dev/null" || return 1
+    _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin >/dev/null" || return 1
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
         echo "[codex-wsl] Aligning WSL clone branch: $wsl_path -> $branch" >&2
-        _quinlan_wsl_bash "cd ${quoted_wsl_path} && (git checkout ${quoted_branch} >/dev/null 2>&1 || git checkout -b ${quoted_branch} origin/${quoted_branch} >/dev/null 2>&1)" || return 1
+        _quinlan_wsl_bash "cd '$wsl_path' && (git checkout '$branch' >/dev/null 2>&1 || git checkout -b '$branch' 'origin/$branch' >/dev/null 2>&1)" || return 1
         wsl_branch="$branch"
     fi
 
     if [[ "${wsl_dirty:-0}" == "0" ]]; then
-        _quinlan_wsl_bash "cd ${quoted_wsl_path} && git pull --ff-only >/dev/null" || return 1
+        _quinlan_wsl_bash "cd '$wsl_path' && git pull --ff-only >/dev/null" || return 1
     elif [[ "$wsl_branch" == "$branch" ]]; then
         echo "[codex-wsl] WSL clone has local changes on '$branch'; skipping auto-pull." >&2
     fi
 
-    _quinlan_wsl_bash "cd ${quoted_wsl_path} && git config core.autocrlf input" >/dev/null 2>&1 || true
+    _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
     printf '%s' "$wsl_path"
 }
 
@@ -508,25 +480,18 @@ _quinlan_create_wsl_worktree() {
     local wsl_path="$1"
     local branch="$2"
     local wsl_main="$3"
-    local quoted_wsl_path quoted_branch quoted_wsl_main quoted_refspec quoted_origin_branch
 
     echo "[codex-wsl] Creating WSL worktree: $wsl_path (branch: $branch)"
 
-    quoted_wsl_path="$(_codex_wsl_bash_quote "$wsl_path")"
-    quoted_branch="$(_codex_wsl_bash_quote "$branch")"
-    quoted_wsl_main="$(_codex_wsl_bash_quote "$wsl_main")"
-    quoted_refspec="$(_codex_wsl_bash_quote "+refs/heads/$branch:refs/remotes/origin/$branch")"
-    quoted_origin_branch="$(_codex_wsl_bash_quote "origin/$branch")"
+    _quinlan_wsl_bash "[ -d '$wsl_path' ] && rm -rf '$wsl_path' || true"
+    _quinlan_wsl_bash "cd '$wsl_main' && git worktree prune"
 
-    _quinlan_wsl_bash "[ -d ${quoted_wsl_path} ] && rm -rf ${quoted_wsl_path} || true"
-    _quinlan_wsl_bash "cd ${quoted_wsl_main} && git worktree prune"
-
-    if ! _quinlan_wsl_bash "cd ${quoted_wsl_main} && git fetch origin ${quoted_refspec}"; then
+    if ! _quinlan_wsl_bash "cd '$wsl_main' && git fetch origin '+refs/heads/$branch:refs/remotes/origin/$branch'"; then
         echo "[codex-wsl] Failed to fetch branch '$branch' in WSL main repo." >&2
         return 1
     fi
 
-    if ! _quinlan_wsl_bash "cd ${quoted_wsl_main} && git worktree add ${quoted_wsl_path} ${quoted_origin_branch}"; then
+    if ! _quinlan_wsl_bash "cd '$wsl_main' && git worktree add '$wsl_path' 'origin/$branch'"; then
         echo "[codex-wsl] Failed to create WSL worktree for '$branch'." >&2
         return 1
     fi
@@ -537,7 +502,6 @@ _quinlan_ensure_wsl_worktree() {
     local branch="$2"
     local main_repo="$3"
     local wsl_user wsl_main wsl_branch wsl_dirty
-    local quoted_wsl_main quoted_wsl_path quoted_wsl_context quoted_branch
 
     _quinlan_require_command wsl || return 1
     _quinlan_require_command git || return 1
@@ -554,12 +518,8 @@ _quinlan_ensure_wsl_worktree() {
 
     wsl_user="$(_quinlan_wsl_user)" || return 1
     wsl_main="/home/$wsl_user/projects/quinlan"
-    quoted_wsl_main="$(_codex_wsl_bash_quote "$wsl_main")"
-    quoted_wsl_path="$(_codex_wsl_bash_quote "$wsl_path")"
-    quoted_wsl_context="$(_codex_wsl_bash_quote "$wsl_path/workspaces/timon")"
-    quoted_branch="$(_codex_wsl_bash_quote "$branch")"
 
-    if ! _quinlan_wsl_bash "[ -d $(_codex_wsl_bash_quote "$wsl_main/.git") ] || [ -f $(_codex_wsl_bash_quote "$wsl_main/.git") ]"; then
+    if ! _quinlan_wsl_bash "[ -d '$wsl_main/.git' ] || [ -f '$wsl_main/.git' ]"; then
         echo "[codex-wsl] Missing WSL main repo: $wsl_main" >&2
         echo "[codex-wsl] Clone quinlan in WSL before using c/dev." >&2
         return 1
@@ -570,13 +530,13 @@ _quinlan_ensure_wsl_worktree() {
         git -C "$main_repo" push -u origin "$branch" || return 1
     fi
 
-    if ! _quinlan_wsl_bash "[ -d $(_codex_wsl_bash_quote "$wsl_path/.git") ] || [ -f $(_codex_wsl_bash_quote "$wsl_path/.git") ]"; then
+    if ! _quinlan_wsl_bash "[ -d '$wsl_path/.git' ] || [ -f '$wsl_path/.git' ]"; then
         _quinlan_create_wsl_worktree "$wsl_path" "$branch" "$wsl_main" || return 1
     fi
 
-    wsl_branch="$(_quinlan_wsl_bash "cd ${quoted_wsl_path} && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
+    wsl_branch="$(_quinlan_wsl_bash "cd '$wsl_path' && git branch --show-current" 2>/dev/null | tr -d '\r[:space:]')"
     if [[ -z "$wsl_branch" || "$wsl_branch" != "$branch" ]]; then
-        wsl_dirty="$(_quinlan_wsl_bash "cd ${quoted_wsl_path} && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
+        wsl_dirty="$(_quinlan_wsl_bash "cd '$wsl_path' && git status --porcelain | wc -l" 2>/dev/null | tr -d '\r[:space:]')"
         if [[ "${wsl_dirty:-0}" != "0" ]]; then
             echo "[codex-wsl] Refusing to realign dirty WSL worktree: $wsl_path (${wsl_branch:-detached} -> $branch)" >&2
             echo "[codex-wsl] Commit, stash, or clean the WSL checkout yourself before rerunning dev/c." >&2
@@ -584,10 +544,10 @@ _quinlan_ensure_wsl_worktree() {
         fi
 
         echo "[codex-wsl] Aligning WSL worktree branch: $wsl_path -> $branch"
-        _quinlan_wsl_bash "cd ${quoted_wsl_path} && git fetch origin && git checkout ${quoted_branch} && git pull --ff-only" || return 1
+        _quinlan_wsl_bash "cd '$wsl_path' && git fetch origin && git checkout '$branch' && git pull --ff-only" || return 1
     fi
 
-    _quinlan_wsl_bash "cd ${quoted_wsl_path} && git config core.autocrlf input" >/dev/null 2>&1 || true
+    _quinlan_wsl_bash "cd '$wsl_path' && git config core.autocrlf input" >/dev/null 2>&1 || true
 }
 
 c() {
@@ -595,26 +555,22 @@ c() {
     _quinlan_require_command wsl || return 1
 
     local repo_root repo_name win_dir branch wsl_path wsl_context_path args main_repo
-    local quoted_wsl_path is_quinlan_repo=0
     repo_root="$(_codex_wsl_repo_root)" || return 1
     repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$repo_root"
-    if _codex_wsl_is_quinlan_repo "$repo_name"; then
-        is_quinlan_repo=1
-    fi
 
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
     fi
 
-    if (( is_quinlan_repo )); then
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
         win_dir="$(_quinlan_current_worktree_name)" || return 1
         wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
         _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
         wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
-        if ! _quinlan_wsl_bash "[ -d $(_codex_wsl_bash_quote "$wsl_context_path") ]"; then
+        if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
             echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
             return 1
         fi
@@ -631,13 +587,12 @@ c() {
     if (( $# > 0 )); then
         printf -v args ' %q' "$@"
     fi
-    quoted_wsl_path="$(_codex_wsl_bash_quote "$wsl_path")"
 
     echo "Starting Codex in WSL: $wsl_context_path"
-    if (( is_quinlan_repo )); then
-        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd ${quoted_wsl_path} && source scripts/dev/env.sh && cd workspaces/timon && codex --dangerously-bypass-approvals-and-sandbox${args}"
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex --dangerously-bypass-approvals-and-sandbox${args}"
     else
-        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd ${quoted_wsl_path} && codex --dangerously-bypass-approvals-and-sandbox${args}"
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && codex --dangerously-bypass-approvals-and-sandbox${args}"
     fi
 }
 
@@ -662,7 +617,6 @@ dev() {
     fi
 
     local branch repo_root repo_name win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
-    local quoted_wsl_path quoted_prompt_path quoted_claude_workspace is_quinlan_repo=0
     if (( skip_sync == 0 )); then
         _quinlan_sync_dotfiles_if_needed || return 1
     fi
@@ -671,20 +625,17 @@ dev() {
     repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$repo_root"
-    if _codex_wsl_is_quinlan_repo "$repo_name"; then
-        is_quinlan_repo=1
-    fi
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
     fi
 
-    if (( is_quinlan_repo )); then
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
         win_dir="$(_quinlan_current_worktree_name)" || return 1
         wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
         _quinlan_ensure_wsl_worktree "$wsl_path" "$branch" "$main_repo" || return 1
         wsl_context_path="$(_quinlan_wsl_context_path "$wsl_path")"
-        if ! _quinlan_wsl_bash "[ -d $(_codex_wsl_bash_quote "$wsl_context_path") ]"; then
+        if ! _quinlan_wsl_bash "[ -d '$wsl_context_path' ]"; then
             echo "[codex-wsl] Missing Timon workspace in WSL worktree: $wsl_context_path" >&2
             return 1
         fi
@@ -703,7 +654,7 @@ dev() {
         # dev handles the cross-boundary copy so callers don't need WSL paths.
         local win_codex_prompt="$main_repo/.codex-init-prompt"
         if [[ -f "$win_codex_prompt" ]]; then
-            if _quinlan_wsl_bash "cat > $(_codex_wsl_bash_quote "$wsl_path/.codex-init-prompt")" < "$win_codex_prompt"; then
+            if _quinlan_wsl_bash "cat > '$wsl_path/.codex-init-prompt'" < "$win_codex_prompt"; then
                 rm -f "$win_codex_prompt"
             else
                 echo "[codex-wsl] Failed to copy Codex prompt to WSL; keeping $win_codex_prompt" >&2
@@ -715,9 +666,6 @@ dev() {
         wsl_context_path="$wsl_path"
         claude_workspace="$main_repo"
     fi
-    quoted_wsl_path="$(_codex_wsl_bash_quote "$wsl_path")"
-    quoted_prompt_path="$(_codex_wsl_bash_quote "$wsl_path/.codex-init-prompt")"
-    quoted_claude_workspace="$(_codex_wsl_bash_quote "$claude_workspace")"
 
     left_pane="${WEZTERM_PANE:-$(wezterm cli list --format json | jq -r 'first(.[] | select(.is_active)) | .pane_id')}"
     if [[ -z "$left_pane" || "$left_pane" == "null" ]]; then
@@ -729,10 +677,10 @@ dev() {
     # as the initial prompt if found. Escaping is for the WSL bash shell
     # that receives this text via send-text.
     local codex_cmd
-    if (( is_quinlan_repo )); then
-        codex_cmd="cd ${quoted_wsl_path} && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf=${quoted_prompt_path}; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
+        codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
     else
-        codex_cmd="cd ${quoted_wsl_path} && source ~/.nvm/nvm.sh 2>/dev/null && codex --dangerously-bypass-approvals-and-sandbox"
+        codex_cmd="cd '$wsl_path' && source ~/.nvm/nvm.sh 2>/dev/null && codex --dangerously-bypass-approvals-and-sandbox"
     fi
 
     local right_pane
@@ -740,7 +688,7 @@ dev() {
     # (e.g. /home/chimern/... → C:/Program Files/Git/home/chimern/...).
     right_pane="$(MSYS_NO_PATHCONV=1 wezterm cli split-pane --right --percent 50 --pane-id "$left_pane" -- wsl.exe -d Ubuntu --cd "$wsl_context_path")"
     local tab_label
-    if (( is_quinlan_repo )); then
+    if _codex_wsl_is_quinlan_repo "$repo_name"; then
         tab_label="$(_quinlan_tab_label_from_worktree "$win_dir")"
     else
         tab_label="$win_dir"
@@ -748,7 +696,7 @@ dev() {
     wezterm cli set-tab-title --pane-id "$left_pane" "$tab_label" >/dev/null 2>&1 || true
 
     sleep 0.3
-    wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd ${quoted_claude_workspace} && cc
+    wezterm cli send-text --no-paste --pane-id "$left_pane" -- "cd '$claude_workspace' && cc
 "
 
     sleep 2

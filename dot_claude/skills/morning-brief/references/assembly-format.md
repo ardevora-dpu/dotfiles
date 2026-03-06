@@ -50,6 +50,29 @@ This describes the **reader outcome** and **voice**, not a rigid section templat
 - **Exclamation marks** — never
 - **Vague quantities** — "many", "several" → use numbers
 
+## Delta Awareness
+
+When a previous brief is available, compare today's agent findings against it and surface what actually changed. The reader should never have to diff two briefs mentally.
+
+### Action tagging
+
+Every item in the actions block gets exactly one tag:
+
+- **`[NEW]`** — first appearance; not in the previous brief
+- **`[CHANGED]`** — present before but status, urgency, or context shifted
+- **`[CARRY-OVER]`** — unchanged from the previous brief
+
+### Structural rules
+
+- **Lead with new and changed items** in both the actions table and exec summary. These are what the reader opened the brief for.
+- **Collapse carry-over actions** into a compact block at the bottom of the actions section, e.g.: *"Still open from previous briefs: ARD-396 (2d), Bloomberg audit (2d), ..."* — one line per item with days-open count.
+- **Exec summary opens with delta** — start with "Since yesterday: ..." (or "Since last brief: ..." for multi-day gaps) followed by the handful of new developments, then a one-liner on what's unchanged.
+- **Skip re-analysing meetings already covered** — if a meeting appeared in the previous brief, note "covered in yesterday's brief" and only surface genuinely new insights or follow-up developments.
+
+### When no previous brief exists
+
+First run or after a gap: treat everything as `[NEW]` and omit the delta framing. Don't mention the absence of a previous brief.
+
 ## Footer
 
 At the bottom of every brief:
