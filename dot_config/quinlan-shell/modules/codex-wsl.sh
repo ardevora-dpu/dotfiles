@@ -463,6 +463,66 @@ if updated != text:
 PY"
 }
 
+_ensure_wsl_codex_credentials_store() {
+    local wsl_user config
+
+    wsl_user="$(_quinlan_wsl_user)" || return 0
+    config="/home/$wsl_user/.codex/config.toml"
+
+    _quinlan_wsl_login_bash "WSL_CODEX_CONFIG='$config' python3 - <<'PY'
+import os
+from pathlib import Path
+
+config = Path(os.environ['WSL_CODEX_CONFIG'])
+config.parent.mkdir(parents=True, exist_ok=True)
+text = config.read_text() if config.exists() else ''
+lines = text.splitlines()
+had_trailing_newline = text.endswith('\n')
+
+expected = {
+    'cli_auth_credentials_store': 'cli_auth_credentials_store = \"file\"',
+    'mcp_oauth_credentials_store': 'mcp_oauth_credentials_store = \"file\"',
+}
+
+pending = dict(expected)
+out = []
+
+for line in lines:
+    stripped = line.lstrip()
+    if stripped.startswith('['):
+        if pending:
+            if out and out[-1] != '':
+                out.append('')
+            out.extend(pending.values())
+            pending.clear()
+        out.append(line)
+        continue
+
+    replaced = False
+    for key, value in expected.items():
+        if stripped.startswith(f'{key} ='):
+            out.append(value)
+            pending.pop(key, None)
+            replaced = True
+            break
+
+    if not replaced:
+        out.append(line)
+
+if pending:
+    if out and out[-1] != '':
+        out.append('')
+    out.extend(pending.values())
+
+updated = '\n'.join(out)
+if had_trailing_newline or not config.exists():
+    updated += '\n'
+
+if updated != text:
+    config.write_text(updated)
+PY"
+}
+
 _ensure_codex_no_user_agents() {
     local local_agents="$HOME/.codex/AGENTS.md"
     local wsl_user wsl_agents
@@ -576,6 +636,7 @@ c() {
         fi
         _ensure_codex_mcp_timeouts
         _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
+        _ensure_wsl_codex_credentials_store
         _ensure_wsl_codex_project_doc_fallback
         _ensure_codex_no_user_agents
     else
@@ -646,6 +707,7 @@ dev() {
         fi
         _ensure_codex_mcp_timeouts
         _ensure_wsl_codex_dbt_mcp_env "$wsl_path"
+        _ensure_wsl_codex_credentials_store
         _ensure_wsl_codex_project_doc_fallback
         _ensure_codex_no_user_agents
 
