@@ -28,7 +28,7 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 ## Engine Defaults (Current)
 
 - **Default retrieval engine:** `BM25` (`pg_search`) for ranked message search.
-- **Fallback retrieval engine:** Postgres FTS (`content_fts`, `user_intent_fts`).
+- **Fallback retrieval engine:** Postgres FTS (`content_fts`, `prompt_fts`, `prompt_simple_fts`).
 - **Substring fallback:** trigram-backed `ILIKE` on `content_text` and `tool_input::text`.
 
 ## Timeout-Safe Contract (Strict)
@@ -38,6 +38,18 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 3. Prefer ranked BM25 search over raw `ILIKE` for broad discovery.
 4. Use FTS fallback when BM25 is unavailable or query parser behaviour is unsuitable.
 5. Use trigram `ILIKE` only for exact fragments/ticker-like probes.
+6. Never call `to_tsvector(...)` on agent views for discovery queries; use the precomputed FTS columns directly.
+
+## Transport Fallback
+
+If Neon MCP transport fails twice or query timing looks suspicious:
+
+1. keep the SQL shape narrow and index-aware
+2. inspect the plan with direct `psql`
+3. debug the query shape there first
+4. then bring the corrected query back to `mcp__neon__run_sql`
+
+Use direct `psql` for diagnosis, not as the default path for normal agent work.
 
 ## View Picker — Which Surface for Which Task
 
@@ -46,8 +58,8 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 | List sessions, check activity | `chat_sessions_agent_v` | Lightweight, pre-aggregated counters |
 | Scan messages without full text | `chat_messages_agent_light_v` | Has `content_preview` (200 chars), avoids TOAST |
 | Ranked message search | `chat_messages_agent_v` + `chat_sessions_agent_v` | `BM25`/`FTS` on enriched projections |
-| Search what a user asked | `chat_user_prompts_agent_v` | Pre-filtered to `human_user_prompt` |
-| Search tool calls | `chat_records_enriched` + `chat_sessions_mat` | Includes `tool_name_used`, `tool_input`, `sql_query` |
+| Search what a user asked | `chat_user_prompts_agent_v` | Purpose-built prompt surface with named prompt search columns |
+| Search tool calls | `chat_tool_calls_agent_v` | Current live MCP-safe path for tool archaeology |
 | System events / token counts | `chat_events_agent_v` | Token usage, event timeline |
 
 **Critical:** `chat_messages_agent_light_v` does **NOT** include `content_text`. Use `chat_messages_agent_v` for FTS/ILIKE.
@@ -57,15 +69,22 @@ Every table and view carries `source_id`, `user_name`, `tool_name`, `platform_na
 | Want this? | Correct column | On which view/table |
 |------------|----------------|---------------------|
 | Session summary | `session_summary` | `chat_sessions_agent_v` |
-| Message text (full) | `content_text` or `content` | `chat_messages_agent_v`, `chat_user_prompts_agent_v` |
+| Message text (full) | `content_text` or `content` | `chat_messages_agent_v` |
+| Prompt text | `prompt_text` | `chat_user_prompts_agent_v` |
+| Prompt FTS (English) | `prompt_fts` | `chat_user_prompts_agent_v` |
+| Prompt FTS (simple) | `prompt_simple_fts` | `chat_user_prompts_agent_v` |
 | Message preview | `content_preview` or `content` | `chat_messages_agent_light_v` |
 | Message role | `record_type` or `role` | All message views |
-| Tool input text search | `tool_input::text` | `chat_records_enriched` |
-| Tool SQL query | `sql_query` | `chat_records_enriched` |
+| Tool input text search | `tool_input::text` | `chat_tool_calls_agent_v` |
+| Tool SQL query | `sql_query` | `chat_tool_calls_agent_v` |
+| File-path session discovery | `normalised_tool_file_path` | `chat_tool_calls_agent_v` |
+| Exact OIC ticker lookup | `artifact_ticker_region` | `chat_tool_calls_agent_v` |
+| Evidence-relative path | `evidence_relative_path` | `chat_tool_calls_agent_v` |
+| Bridged session join key | `source_session_id` | `chat_tool_calls_agent_v`, `chat_sessions_agent_v` |
 | Last activity timestamp | `activity_at` | `chat_sessions_agent_v` |
 | Session owner | `user_name` | All tables and views |
 
-**View aliases:** Agent views expose `role` (= `record_type`), `content` (= `content_text` or `content_preview`), `created_at` (= `timestamp`).
+**View aliases:** Message views expose `role` (= `record_type`), `content` (= `content_text` or `content_preview`), `created_at` (= `timestamp`). Prompt views deliberately expose `prompt_text` instead of a generic `content` alias.
 
 ## Query Workflow
 
@@ -114,6 +133,40 @@ WHERE s.started_at >= now() - interval '14 days'
 ORDER BY score DESC, m.timestamp DESC NULLS LAST
 LIMIT 20;
 
+-- Prompt search ("what did Jeremy ask?")
+SELECT
+  s.session_id,
+  s.user_name,
+  s.started_at,
+  m.id,
+  m.created_at,
+  LEFT(m.prompt_text, 220) AS preview
+FROM public.chat_user_prompts_agent_v m
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = m.source_id
+ AND s.session_id = m.session_id
+WHERE s.started_at >= now() - interval '14 days'
+  AND m.prompt_fts @@ websearch_to_tsquery('english', 'counterfactual comparison case')
+ORDER BY m.created_at DESC
+LIMIT 20;
+
+-- Exact-token / ticker-friendly prompt search
+SELECT
+  s.session_id,
+  s.user_name,
+  s.started_at,
+  m.id,
+  m.created_at,
+  LEFT(m.prompt_text, 220) AS preview
+FROM public.chat_user_prompts_agent_v m
+JOIN public.chat_sessions_agent_v s
+  ON s.source_id = m.source_id
+ AND s.session_id = m.session_id
+WHERE s.started_at >= now() - interval '30 days'
+  AND m.prompt_simple_fts @@ plainto_tsquery('simple', 'three reasoning paths')
+ORDER BY m.created_at DESC
+LIMIT 20;
+
 -- Trigram exact-fragment fallback (do not broad-scan content_json::text)
 SELECT
   m.session_id,
@@ -129,34 +182,35 @@ WHERE s.started_at >= now() - interval '30 days'
 ORDER BY m.timestamp DESC
 LIMIT 20;
 
--- Tool-input exact-fragment search (trigram-backed)
+-- Tool-call archaeology on the current live target
 SELECT
-  t.session_id,
-  t.user_name,
-  t.timestamp,
-  t.tool_name_used AS tool_name,
-  LEFT(t.tool_input::text, 220) AS tool_input_preview
-FROM public.chat_records_enriched t
-JOIN public.chat_sessions_mat s
-  ON s.source_id = t.source_id
- AND s.session_id = t.session_id
-WHERE s.session_kind = 'main'
-  AND t.tool_name_used IS NOT NULL
-  AND t.timestamp >= now() - interval '30 days'
-  AND t.tool_input::text ILIKE '%RMBS-US%'
-ORDER BY t.timestamp DESC
+  session_id,
+  user_name,
+  created_at,
+  tool_name_used AS tool_name,
+  LEFT(tool_input::text, 220) AS tool_input_preview
+FROM public.chat_tool_calls_agent_v
+WHERE user_name = 'jeremy'
+  AND created_at >= now() - interval '30 days'
+  AND (
+    artifact_ticker_region = 'RMBS-US'
+    OR normalised_tool_file_path ILIKE '%RMBS-US%'
+  )
+ORDER BY created_at DESC
 LIMIT 20;
 ```
 
 ## Fast Gotchas
 
 - Primary ingest table is `chat_raw_records`.
-- Projection/materialised tables are `chat_records_enriched` and `chat_sessions_mat`.
-- Agent query views are `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_messages_agent_light_v`, `chat_user_prompts_agent_v`, `chat_events_agent_v`.
+- Current live MCP query surfaces are `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_messages_agent_light_v`, `chat_user_prompts_agent_v`, `chat_tool_calls_agent_v`, `chat_events_agent_v`, and `chat_raw_records`.
+- Local docs may mention `chat_records_enriched`, `chat_sessions_mat`, or `chat_tool_usage`; confirm they exist before using them on a live target.
 - Message timestamp is `timestamp` (or alias `created_at` on views).
 - Session sync column is `synced_at`, not `updated_at`.
 - `thinking_config` and `tool_input` are `jsonb`.
-- All joins between sessions and messages/events/tools require `source_id AND session_id` (composite key).
+- Day-to-day tool archaeology should start with `chat_tool_calls_agent_v`; fall back to `chat_raw_records` only for raw forensics.
+- For `Write` / `Edit` discovery, prefer `artifact_ticker_region`; fall back to `normalised_tool_file_path` when the extractor is null.
+- All joins between sessions and messages/events require `source_id AND session_id` (composite key).
 - `message_class` values:
 `human_user_prompt`, `assistant`, `assistant_style_user`, `tool_result_payload`, `system`, `system_injected`, `command_invocation`, `summary`, `queue_operation`, `other`.
 

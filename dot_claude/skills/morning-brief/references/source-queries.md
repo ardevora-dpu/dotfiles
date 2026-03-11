@@ -212,7 +212,7 @@ Sort messages client-side by `createdDateTime` descending after retrieval.
 
 ## Neon
 
-**Always pass:** `projectId: "shy-wildflower-46673345"`. Do not pass `databaseName`.
+Query via `psycopg` using `DATABASE_URL`. Do not use the retired Neon MCP.
 
 **Query 1 — Session summary:**
 ```sql
@@ -222,7 +222,8 @@ SELECT
   input_tokens_total, output_tokens_total,
   active_duration_minutes, sidechain_count, cwd
 FROM chat_sessions_agent_v
-WHERE started_at > NOW() - INTERVAL '{period_days} days'
+WHERE user_name = 'jeremy'
+  AND started_at > NOW() - INTERVAL '{period_days} days'
 ORDER BY started_at DESC
 ```
 Column is `started_at`, NOT `created_at`.
@@ -236,7 +237,8 @@ SELECT
   SUM(active_duration_minutes) as active_mins,
   MAX(started_at) as last_active
 FROM chat_sessions_agent_v
-WHERE started_at > NOW() - INTERVAL '{period_days} days'
+WHERE user_name = 'jeremy'
+  AND started_at > NOW() - INTERVAL '{period_days} days'
 GROUP BY ticker
 ORDER BY active_mins DESC
 ```
@@ -244,13 +246,14 @@ Note escape string prefix `E'...'` with double backslashes for literal backslash
 
 **Query 3 — What Jeremy typed:**
 ```sql
-SELECT s.cwd, m.content_text, m.timestamp
+SELECT s.cwd, m.prompt_text, m.timestamp
 FROM chat_user_prompts_agent_v m
 JOIN chat_sessions_agent_v s
   ON m.source_id = s.source_id
  AND m.session_id = s.session_id
 WHERE m.timestamp > NOW() - INTERVAL '{period_days} days'
-  AND m.content_text NOT LIKE '%<task-notification>%'
+  AND s.user_name = 'jeremy'
+  AND m.prompt_text NOT LIKE '%<task-notification>%'
 ORDER BY m.timestamp DESC
 LIMIT 30
 ```
@@ -258,17 +261,35 @@ Column is `timestamp`, NOT `created_at`.
 
 **Query 4 — Tool usage:**
 ```sql
-SELECT e.tool_name_used AS tool_name, COUNT(*) AS uses
-FROM chat_records_enriched e
-JOIN chat_sessions_mat s
-  ON e.source_id = s.source_id
- AND e.session_id = s.session_id
-WHERE s.session_kind = 'main'
-  AND e.tool_name_used IS NOT NULL
-  AND e.timestamp > NOW() - INTERVAL '{period_days} days'
-GROUP BY e.tool_name_used
+SELECT t.called_tool_name AS tool_name, COUNT(*) AS uses
+FROM chat_tool_calls_agent_v t
+JOIN chat_sessions_agent_v s
+  ON t.source_id = s.source_id
+ AND t.session_id = s.session_id
+WHERE s.user_name = 'jeremy'
+  AND t.called_tool_name IS NOT NULL
+  AND t.timestamp > NOW() - INTERVAL '{period_days} days'
+GROUP BY t.called_tool_name
 ORDER BY uses DESC
 LIMIT 15
+```
+
+**Query 5 — Jeremy tool calls with artefact context:**
+```sql
+SELECT
+  t.timestamp,
+  t.called_tool_name,
+  t.normalised_tool_file_path,
+  t.artifact_ticker_region,
+  t.evidence_relative_path
+FROM chat_tool_calls_agent_v t
+JOIN chat_sessions_agent_v s
+  ON t.source_id = s.source_id
+ AND t.session_id = s.session_id
+WHERE s.user_name = 'jeremy'
+  AND t.timestamp > NOW() - INTERVAL '{period_days} days'
+ORDER BY t.timestamp DESC
+LIMIT 30
 ```
 
 **Key table routing:**
@@ -277,9 +298,7 @@ LIMIT 15
 | Rich session stats (prompt/token counts) | `chat_sessions_agent_v` |
 | Session-level with cwd/branch | `chat_sessions_agent_v` |
 | User prompts (what Jeremy typed) | `chat_user_prompts_agent_v` |
-| Tool usage counts (tool names) | `chat_records_enriched` + `chat_sessions_mat` |
-
-Do not use semicolons at the end of SQL statements — they cause syntax errors in the Neon MCP.
+| Tool usage counts (tool names, SQL, file paths) | `chat_tool_calls_agent_v` |
 
 ## Otter
 

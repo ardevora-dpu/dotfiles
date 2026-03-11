@@ -218,19 +218,18 @@ Jeremy's research activity is captured across three sources that should be combi
 
 ### Source 1: Neon Sessions (Chat Logs)
 
-Claude Code sessions synced to Neon via the Jeremy harness. Query Neon directly - do not use local session files.
+Claude Code sessions synced to Neon via the Jeremy harness. Query Neon directly via `psycopg` using `DATABASE_URL` - do not use local session files or the retired Neon MCP.
 
 ```
-Tool: mcp__neon__run_sql
-Parameters:
-  projectId: "shy-wildflower-46673345"
-  sql: |
-    SELECT session_id, started_at::date, message_count,
-           sidechain_count, branch_count,
-           LEFT(session_summary, 100) as summary
-    FROM chat_sessions_agent_v
-    WHERE started_at >= '{start_date}'
-    ORDER BY started_at DESC
+Access: uv run python + psycopg.connect(os.environ["DATABASE_URL"])
+Example SQL:
+  SELECT session_id, started_at::date, message_count,
+         sidechain_count, branch_count,
+         LEFT(session_summary, 100) AS summary
+  FROM chat_sessions_agent_v
+  WHERE user_name = 'jeremy'
+    AND started_at >= '{start_date}'
+  ORDER BY started_at DESC
 ```
 
 **Available Tables:**
@@ -239,10 +238,9 @@ Parameters:
 |-------|---------|
 | `chat_sessions_agent_v` | Agent-safe main-session metadata + workflow rollups (`git_branch`, `session_summary`, `branch_count`, `sidechain_count`, `active_duration_minutes`) |
 | `chat_messages_agent_v` | Agent-safe full message stream for main sessions (`record_type`, `content_text`, `message_class`) |
-| `chat_user_prompts_agent_v` | Agent-safe likely human prompts (`content_text`, `message_class`, `user_intent_fts`) |
+| `chat_user_prompts_agent_v` | Agent-safe human prompts (`prompt_text`, `prompt_fts`, `prompt_simple_fts`) |
+| `chat_tool_calls_agent_v` | Agent-safe tool call surface (`called_tool_name`, `tool_input`, `sql_query`, `normalised_tool_file_path`, `artifact_ticker_region`) |
 | `chat_events_agent_v` | Agent-safe event stream (`event_type`, token fields, payload_json) |
-| `chat_sessions_mat` | Session materialised view including `subagent` and `summary_only` rows |
-| `chat_records_enriched` | Enriched record surface (includes `tool_name_used`, `tool_input`, `sql_query`) |
 
 **Workflow Metadata (use these for deeper analysis):**
 
@@ -254,7 +252,9 @@ Parameters:
 | `session_summary` | Auto-generated summary for quick understanding |
 | `active_duration_minutes` | Gap-capped active time estimate for session effort |
 | `thinking_config` | Extended thinking usage |
-| `tool_use_id` | Links tool results to calls in `chat_records_enriched` |
+| `called_tool_name` | Tool invoked during the session (for workflow pattern analysis) |
+| `normalised_tool_file_path` | File path touched by Write/Edit-style tools (normalised to forward slashes) |
+| `artifact_ticker_region` | Extracted ticker-region from research artefact paths (for OIC/peer work) |
 
 **Sample deep-dive query:**
 
@@ -271,7 +271,8 @@ LIMIT 20
 ```sql
 SELECT session_id, sidechain_count, session_summary
 FROM chat_sessions_agent_v
-WHERE started_at >= '{start_date}'
+WHERE user_name = 'jeremy'
+  AND started_at >= '{start_date}'
   AND sidechain_count > 5
 ORDER BY sidechain_count DESC
 ```
@@ -280,16 +281,33 @@ ORDER BY sidechain_count DESC
 
 ```sql
 SELECT s.session_id, s.started_at, s.git_branch,
-       LEFT(m.content_text, 150) as prompt_preview,
-       ts_rank(m.user_intent_fts, websearch_to_tsquery('english', 'valuation analyst')) as relevance
+       LEFT(m.prompt_text, 150) AS prompt_preview,
+       ts_rank(m.prompt_fts, websearch_to_tsquery('english', 'valuation analyst')) AS relevance
 FROM chat_user_prompts_agent_v m
 JOIN chat_sessions_agent_v s
   ON m.source_id = s.source_id
  AND m.session_id = s.session_id
-WHERE m.user_intent_fts @@ websearch_to_tsquery('english', 'valuation analyst')
+WHERE s.user_name = 'jeremy'
+  AND m.prompt_fts @@ websearch_to_tsquery('english', 'valuation analyst')
   AND s.started_at >= '{start_date}'
 ORDER BY relevance DESC, m.timestamp DESC
 LIMIT 10;
+```
+
+**Find tool usage patterns from main-session calls:**
+
+```sql
+SELECT s.session_id, s.started_at, t.called_tool_name,
+       t.normalised_tool_file_path, t.artifact_ticker_region
+FROM chat_tool_calls_agent_v t
+JOIN chat_sessions_agent_v s
+  ON t.source_id = s.source_id
+ AND t.session_id = s.session_id
+WHERE s.user_name = 'jeremy'
+  AND s.started_at >= '{start_date}'
+  AND t.called_tool_name IS NOT NULL
+ORDER BY t.timestamp DESC
+LIMIT 20;
 ```
 
 ### Source 2: Evidence Folder (Persisted Research)

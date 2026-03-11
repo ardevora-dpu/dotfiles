@@ -111,7 +111,7 @@ Launch these agents during COLLECT. Each receives: date range, direction stateme
 | Otter transcripts | Meeting decisions, discussions | Otter MCP (`mcp__otter__search`, `mcp__otter__fetch`) |
 | Linear | Work tracked, completed, blocked | `mcp__linear__list_issues` |
 | Git commits | What was shipped | `git log` |
-| Neon sessions | Jeremy's research activity | `mcp__neon__run_sql` |
+| Neon sessions | Jeremy's research activity | `psycopg` + `DATABASE_URL` |
 | GitHub PRs | Platform deliverables | `gh pr list` |
 
 ### Transcript Filtering
@@ -230,7 +230,7 @@ Typical pattern:
 
 Jeremy's research is captured across three sources that should be combined:
 
-1. **Neon sessions** — Chat logs from Claude Code sessions. Query `chat_sessions_agent_v` and `chat_messages_agent_v` (plus `chat_user_prompts_agent_v` for intent). Shows what questions he asked, what stocks he explored, how his thinking evolved.
+1. **Neon sessions** — Chat logs from Claude Code sessions. Query via `psycopg` using `DATABASE_URL`, using `chat_sessions_agent_v`, `chat_messages_agent_v`, `chat_user_prompts_agent_v`, and `chat_tool_calls_agent_v`. Shows what questions he asked, what stocks he explored, how his thinking evolved.
 
 2. **Evidence folder** — `workspaces/jeremy/evidence/**/*.md`. Structured research artifacts organized by review period → sector → stock → analysis type. Look for OIC development files, peer analysis, regime charts.
 
