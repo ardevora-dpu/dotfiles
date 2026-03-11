@@ -476,6 +476,12 @@ _ensure_codex_no_user_agents() {
     _quinlan_wsl_bash "rm -f '$wsl_agents'" >/dev/null 2>&1 || true
 }
 
+_codex_wsl_launch_flags() {
+    # WSL shells do not have a reliable desktop keyring session, so
+    # keep MCP OAuth tokens in Codex's file-backed store for WSL launches.
+    printf "%s" "--dangerously-bypass-approvals-and-sandbox -c 'mcp_oauth_credentials_store=\"file\"'"
+}
+
 _quinlan_create_wsl_worktree() {
     local wsl_path="$1"
     local branch="$2"
@@ -554,11 +560,12 @@ c() {
     _quinlan_require_command git || return 1
     _quinlan_require_command wsl || return 1
 
-    local repo_root repo_name win_dir branch wsl_path wsl_context_path args main_repo
+    local repo_root repo_name win_dir branch wsl_path wsl_context_path args codex_flags main_repo
     repo_root="$(_codex_wsl_repo_root)" || return 1
     repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$repo_root"
+    codex_flags="$(_codex_wsl_launch_flags)"
 
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
@@ -590,9 +597,9 @@ c() {
 
     echo "Starting Codex in WSL: $wsl_context_path"
     if _codex_wsl_is_quinlan_repo "$repo_name"; then
-        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex --dangerously-bypass-approvals-and-sandbox${args}"
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && source scripts/dev/env.sh && cd 'workspaces/timon' && codex $codex_flags${args}"
     else
-        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && codex --dangerously-bypass-approvals-and-sandbox${args}"
+        wsl -- bash -lc "source ~/.nvm/nvm.sh 2>/dev/null; cd '$wsl_path' && codex $codex_flags${args}"
     fi
 }
 
@@ -616,7 +623,7 @@ dev() {
         return 1
     fi
 
-    local branch repo_root repo_name win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace
+    local branch repo_root repo_name win_dir wsl_path wsl_context_path left_pane main_repo claude_workspace codex_flags
     if (( skip_sync == 0 )); then
         _quinlan_sync_dotfiles_if_needed || return 1
     fi
@@ -625,6 +632,7 @@ dev() {
     repo_name="$(_codex_wsl_repo_name "$repo_root")" || return 1
     branch="$(git branch --show-current 2>/dev/null)"
     main_repo="$repo_root"
+    codex_flags="$(_codex_wsl_launch_flags)"
     if [[ -z "$branch" ]]; then
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
@@ -678,9 +686,9 @@ dev() {
     # that receives this text via send-text.
     local codex_cmd
     if _codex_wsl_is_quinlan_repo "$repo_name"; then
-        codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex --dangerously-bypass-approvals-and-sandbox \"\$_qp\"; else codex --dangerously-bypass-approvals-and-sandbox; fi"
+        codex_cmd="cd '$wsl_path' && source scripts/dev/env.sh && cd workspaces/timon && source ~/.nvm/nvm.sh && _qf='$wsl_path/.codex-init-prompt'; if [ -f \"\$_qf\" ]; then _qp=\"\$(cat \"\$_qf\")\"; rm -f \"\$_qf\"; codex $codex_flags \"\$_qp\"; else codex $codex_flags; fi"
     else
-        codex_cmd="cd '$wsl_path' && source ~/.nvm/nvm.sh 2>/dev/null && codex --dangerously-bypass-approvals-and-sandbox"
+        codex_cmd="cd '$wsl_path' && source ~/.nvm/nvm.sh 2>/dev/null && codex $codex_flags"
     fi
 
     local right_pane

@@ -8,15 +8,6 @@ case "$_quinlan_uname" in
         ;;
     *)
         unset CLAUDE_CODE_GIT_BASH_PATH
-        # Auto-unlock GNOME Keyring in WSL2 so MCP servers (Linear, Otter)
-        # can read OAuth tokens without a modal unlock dialog.
-        # Requires one-time setup: delete ~/.local/share/keyrings/*.keyring
-        # and recreate with empty password (see keyring-wsl notes in memory).
-        if [[ -n "${WSL_DISTRO_NAME:-}" ]] && command -v gnome-keyring-daemon >/dev/null 2>&1; then
-            if ! pgrep -u "$USER" gnome-keyring-daemon >/dev/null 2>&1; then
-                eval "$(echo -n '' | gnome-keyring-daemon --replace --unlock --components=secrets 2>/dev/null)" 2>/dev/null || true
-            fi
-        fi
         ;;
 esac
 unset _quinlan_uname
