@@ -20,3 +20,9 @@ _quinlan_fix_path() {
     trap - DEBUG
 }
 trap '_quinlan_fix_path' DEBUG
+
+# WSL browser auth flows should open in Windows, not Linux Chrome, to avoid
+# GNOME keyring prompts for OAuth login callbacks.
+if [[ -x /usr/bin/wslview ]]; then
+    export BROWSER=/usr/bin/wslview
+fi

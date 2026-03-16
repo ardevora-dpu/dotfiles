@@ -463,6 +463,72 @@ if updated != text:
 PY"
 }
 
+_codex_wsl_profile_name() {
+    printf "%s" "timon_wsl_full_access"
+}
+
+_ensure_wsl_codex_profile() {
+    local wsl_user config profile
+
+    wsl_user="$(_quinlan_wsl_user)" || return 0
+    config="/home/$wsl_user/.codex/config.toml"
+    profile="$(_codex_wsl_profile_name)"
+
+    _quinlan_wsl_login_bash "mkdir -p '/home/$wsl_user/.codex' && touch '$config'"
+
+    _quinlan_wsl_login_bash "WSL_CODEX_CONFIG='$config' WSL_CODEX_PROFILE='$profile' python3 - <<'PY'
+import os
+from pathlib import Path
+
+config = Path(os.environ['WSL_CODEX_CONFIG'])
+profile = os.environ['WSL_CODEX_PROFILE']
+text = config.read_text() if config.exists() else ''
+lines = text.splitlines()
+header = f'[profiles.{profile}]'
+managed_keys = {
+    'approval_policy': 'approval_policy = \"never\"',
+    'sandbox_mode': 'sandbox_mode = \"danger-full-access\"',
+    'web_search': 'web_search = \"cached\"',
+    'mcp_oauth_credentials_store': 'mcp_oauth_credentials_store = \"file\"',
+}
+
+start = None
+end = len(lines)
+for idx, value in enumerate(lines):
+    if value.strip() == header:
+        start = idx
+        break
+
+if start is not None:
+    for idx in range(start + 1, len(lines)):
+        if lines[idx].startswith('['):
+            end = idx
+            break
+
+desired_block = [header, *managed_keys.values()]
+
+if start is None:
+    if lines and lines[-1] != '':
+        lines.append('')
+    lines.extend(desired_block)
+else:
+    preserved = []
+    for value in lines[start + 1:end]:
+        stripped = value.lstrip()
+        if any(stripped.startswith(f'{key} ') or stripped.startswith(f'{key}=') for key in managed_keys):
+            continue
+        preserved.append(value)
+    lines = lines[:start] + desired_block + preserved + lines[end:]
+
+updated = '\\n'.join(lines)
+if text.endswith('\\n'):
+    updated += '\\n'
+
+if updated != text:
+    config.write_text(updated)
+PY"
+}
+
 _ensure_codex_no_user_agents() {
     local local_agents="$HOME/.codex/AGENTS.md"
     local wsl_user wsl_agents
@@ -477,9 +543,7 @@ _ensure_codex_no_user_agents() {
 }
 
 _codex_wsl_launch_flags() {
-    # WSL shells do not have a reliable desktop keyring session, so
-    # keep MCP OAuth tokens in Codex's file-backed store for WSL launches.
-    printf "%s" "--dangerously-bypass-approvals-and-sandbox -c 'mcp_oauth_credentials_store=\"file\"'"
+    printf "%s" "--profile $(_codex_wsl_profile_name)"
 }
 
 _quinlan_create_wsl_worktree() {
@@ -572,6 +636,8 @@ c() {
         return 1
     fi
 
+    _ensure_wsl_codex_profile
+
     if _codex_wsl_is_quinlan_repo "$repo_name"; then
         win_dir="$(_quinlan_current_worktree_name)" || return 1
         wsl_path="$(_quinlan_wsl_worktree_path "$win_dir")" || return 1
@@ -637,6 +703,8 @@ dev() {
         echo "[codex-wsl] Could not determine current branch for $PWD" >&2
         return 1
     fi
+
+    _ensure_wsl_codex_profile
 
     if _codex_wsl_is_quinlan_repo "$repo_name"; then
         win_dir="$(_quinlan_current_worktree_name)" || return 1
