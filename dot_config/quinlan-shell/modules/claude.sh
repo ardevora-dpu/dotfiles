@@ -7,6 +7,16 @@
 # WezTerm text injection.
 
 _quinlan_run_claude() {
+    # Propagate project-level .claude/settings.json to the CWD so Claude
+    # Code picks up the shared permission policy even when launched from a
+    # workspace subdirectory.  The root file is the single source of truth;
+    # workspace copies are gitignored.
+    local root
+    root="$(git rev-parse --show-toplevel 2>/dev/null)"
+    if [[ -n "$root" && -f "$root/.claude/settings.json" && "$PWD" != "$root" ]]; then
+        mkdir -p "$PWD/.claude"
+        cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
+    fi
     claude "$@"
 }
 
