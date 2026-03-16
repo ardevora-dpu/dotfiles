@@ -89,6 +89,11 @@ if (( _quinlan_is_windows_shell )); then
         _quinlan_path_prepend_if_dir "$npm_bin"
     fi
 
+    # PostgreSQL client tools (psql) — pick the highest installed version.
+    _pg_latest="$(ls -d /c/Program\ Files/PostgreSQL/*/bin 2>/dev/null | sort -t/ -k6 -V | tail -1)"
+    [[ -n "$_pg_latest" ]] && _quinlan_path_prepend_if_dir "$_pg_latest"
+    unset _pg_latest
+
     if command -v mise >/dev/null 2>&1 && [[ -n "${LOCALAPPDATA:-}" ]]; then
         mise_shims="$(_win_path "$LOCALAPPDATA")/mise/shims"
         _quinlan_path_prepend_if_dir "$mise_shims"
