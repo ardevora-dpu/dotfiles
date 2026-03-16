@@ -30,6 +30,7 @@ if not isinstance(env_block, dict):
 env_block['BASH_ENV'] = bash_env
 env_block['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] = '1'
 data['env'] = env_block
+data.pop('skipDangerousModePermissionPrompt', None)
 
 if is_timon:
     # ARD451_PROFILE_TIMON

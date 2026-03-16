@@ -7,7 +7,7 @@
 # WezTerm text injection.
 
 _quinlan_run_claude() {
-    claude --dangerously-skip-permissions "$@"
+    claude "$@"
 }
 
 cc() {
