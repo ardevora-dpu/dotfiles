@@ -17,7 +17,13 @@ _quinlan_run_claude() {
         mkdir -p "$PWD/.claude"
         cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
     fi
-    claude "$@"
+    # Extend workspace to the git root so subagents and skills can read
+    # files anywhere in the repo without workspace trust prompts.
+    if [[ -n "$root" && "$PWD" != "$root" ]]; then
+        claude --add-dir "$root" "$@"
+    else
+        claude "$@"
+    fi
 }
 
 cc() {
