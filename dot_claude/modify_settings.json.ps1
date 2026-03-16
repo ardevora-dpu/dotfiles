@@ -34,7 +34,7 @@ data.pop('skipDangerousModePermissionPrompt', None)
 
 if is_timon:
     # ARD451_PROFILE_TIMON
-    data['autoUpdatesChannel'] = 'stable'
+    data['autoUpdatesChannel'] = 'latest'
     data['model'] = 'opus'
     plugins = data.get('enabledPlugins', {})
     if not isinstance(plugins, dict):
@@ -43,13 +43,13 @@ if is_timon:
     data['enabledPlugins'] = plugins
 elif is_jeremy:
     # ARD451_PROFILE_JEREMY
-    data['autoUpdatesChannel'] = 'stable'
+    data['autoUpdatesChannel'] = 'latest'
 elif is_jack:
     # ARD507_PROFILE_JACK
-    data['autoUpdatesChannel'] = 'stable'
+    data['autoUpdatesChannel'] = 'latest'
 else:
     # Non-target profiles keep automatic updates conservative by default.
-    data.setdefault('autoUpdatesChannel', 'stable')
+    data.setdefault('autoUpdatesChannel', 'latest')
 
 json.dump(data, sys.stdout, indent=2)
 sys.stdout.write('\n')
