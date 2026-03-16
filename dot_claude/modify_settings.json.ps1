@@ -34,7 +34,7 @@ data.pop('skipDangerousModePermissionPrompt', None)
 
 if is_timon:
     # ARD451_PROFILE_TIMON
-    data['autoUpdatesChannel'] = 'latest'
+    data['autoUpdatesChannel'] = 'stable'
     data['model'] = 'opus'
     plugins = data.get('enabledPlugins', {})
     if not isinstance(plugins, dict):
