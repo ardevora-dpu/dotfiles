@@ -28,9 +28,13 @@ Disagreements, frustration, repeated circling on the same topic. Don't sanitise 
 ### 7. Key Quotes
 Only the ones that capture the room — a phrase that crystallises a tension, a moment of clarity, or an unguarded admission. Max 3-4 per meeting.
 
+### 8. Objective Relevance
+Which business objectives (from `objectives.json`) does this meeting advance, block, or leave untouched? Tag each decision and action item against objectives. Flag under-processed discussions about objective-critical topics.
+
 ## Judgement Guidance
 
 - **Full candour** on interpersonal dynamics. This is a private briefing for Timon, not a diplomatic summary for the group.
 - **Claims proportional to evidence** — if someone seemed frustrated, say "seemed frustrated" not "was angry". If the evidence is strong (raised voice, repeated interruptions), be direct.
 - **Don't just list — assess.** "The benchmark discussion consumed 20 minutes without resolution because Jack and Helen have different definitions of 'ready'" is better than "Benchmark was discussed."
 - **Action items Otter would miss** — Otter catches explicit "I'll do X by Friday". Catch the implicit ones: someone said "we should probably..." and no one pushed back, which means it's now theirs.
+- **Sentiment and tension** — Analyse the tone of the discussion. Where were people animated, defensive, or disengaged? What was left unsaid? This is intelligence a summary misses.

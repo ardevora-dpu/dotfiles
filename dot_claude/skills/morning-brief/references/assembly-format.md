@@ -1,85 +1,177 @@
-# Brief Assembly Format
+# Brief Assembly Format — Chief of Staff Intelligence Product
 
-This describes the **reader outcome** and **voice**, not a rigid section template. Claude decides structure based on what the agents found.
+This describes the **structure**, **voice**, and **evaluation lens** for the morning brief. The brief is not a status dashboard — it is a strategic intelligence product that thinks about the business, challenges the plan, and keeps the reader focused on what moves things forward.
 
 ## Reader Outcome
 
-- **30-second orientation** from the exec summary — what matters, what's true, how sure are we
-- **Actions at the top** — consolidated from all agents' `[ACTION]` markers. If nothing needs a response, say so explicitly.
-- **Full picture below** — proportional to what happened. Quiet day = short brief. Busy day = longer brief.
+After reading this brief, Timon should be:
+- **Fully oriented** — complete picture of what happened, what's coming, what matters
+- **Ready to decide** — decisions are pre-processed with recommendations and time estimates
+- **Challenged where needed** — the brief surfaces uncomfortable truths (misaligned time, stale decisions, drift from objectives)
+- **Unburdened** — email triaged, noise filtered, routine handled autonomously
 
-## Structural Requirements (only 3)
+## The Evaluation Lens
 
-1. **Actions block** — always first. Consolidated from all agents. Each action includes source context (who/what/where). If nothing needs a response, a single line: "No actions required."
+**Everything** in the brief is filtered through the business objectives (loaded from `objectives.json`). A finding that advances an objective gets prominent treatment. A finding irrelevant to all objectives goes to "Not Today" or gets skipped entirely. The brief doesn't just report what happened — it evaluates whether it matters.
 
-2. **Executive summary** — always second. 30-second scan. Headline judgements across all sources. This is where cross-source connections live: a Teams thread + meeting discussion + email about the same topic → one consolidated judgement.
+Load `references/objectives-framework.md` for the full evaluation rubric.
 
-3. **Detail follows** — Claude decides what's worth expanding, what gets one line, what gets skipped entirely.
+## The 7 Sections
 
-## Structural Freedom
+The brief has exactly 7 sections, in this order. Every section is required (even if short). The order is deliberate — strategic context first when cognitive energy is highest, operational detail later.
 
-- **Merge related findings** when they tell one story. If the AMC benchmark came up in Teams, a meeting, and Helen's email, that's one "AMC Benchmark" narrative, not three separate source sections.
-- **Skip quiet sources** — a source with nothing noteworthy doesn't need a section. Don't pad with "Teams: no new messages."
-- **Expand what matters** — if Jeremy had a massive research day, that's the centrepiece. If infrastructure had a failure, that gets detail.
-- **Reorder by salience** — most important findings first after the exec summary, not in agent order.
+### 1. State of Play
 
-## Voice (Ardevora Style)
+Where do the business objectives actually stand? Not status — **assessment**.
 
-- **British spelling throughout** (colour, optimise, behaviour, summarise)
-- **Serious peer tone** — no hype, no superlatives, no exclamation marks
-- **Claims proportional to evidence** — strong evidence gets a confident statement, weak evidence gets hedged ("appears to", "likely")
-- **Conclusion-first** within each section — lead with the judgement, then support
-- **Make judgements** — "B-SYS stage 3 had 280 sidechains — likely heavy retrying" not "Jeremy had some sessions"
-- **Full candour** on meeting dynamics — interpersonal friction, vibe, unresolved tensions
-- **Personal items** (Laura's calendar) woven naturally into the timeline, not segregated into a "Personal" section
+For each objective, provide a PDB-style assessment:
+- Lead with the judgement: "AMC launch is blocked on JPM onboarding. Nothing you can do today."
+- State confidence: high / moderate / low
+- Identify the current blocker or next move
+- Connect evidence from multiple sources (Linear + email + Teams + Neon)
 
-## Length Guidance
+This section should be 3-8 sentences per objective. If an objective has no new developments, one sentence: "Hiring: no change. Still zero hours allocated."
 
-- **Exec summary + actions:** scannable in under 2 minutes
-- **Full read:** proportional to what happened
-- **Green infrastructure:** one line ("All 12 tasks passed, SCREEN_WEEKLY fresh as of Sunday")
-- **Problems:** expanded with what failed, impact, and suggested action
+**The Rabois test lives here.** Compare actual time allocation (from calendar + Neon sessions) against objectives. If there's a gap, say it: "You said AMC launch is the priority. Yesterday you spent 6 hours on tech debt and 0 on AMC."
 
-## What to Avoid
+### 2. What Changed Overnight
 
-- **Mechanical sameness** — same structure every day regardless of content
-- **Section padding** — noting a source had no activity wastes the reader's time
-- **Equal-weight treatment** — a live benchmark decision thread matters more than a routine PR merge
-- **Source-by-source reporting** — organise by what matters, not by which agent returned it
-- **Superlatives** — "remarkable", "impressive", "significant" are banned
-- **Exclamation marks** — never
-- **Vague quantities** — "many", "several" → use numbers
+Signals that shift the picture since the last brief. This is the delta section — new developments only, evaluated against objectives.
+
+- Lead with new/changed items. Use `[NEW]` and `[CHANGED]` tags.
+- Each signal gets an **assessment**, not just a summary: "JPM sent onboarding docs — this unblocks AMC external readiness. Respond today."
+- Cross-source connections: if an email, a Teams message, and a Linear update are about the same thing, merge them into one assessment.
+- Compact carry-over at the bottom: "Still open from previous briefs: [one-liner per item with days-open count]"
+
+### 3. Your Day
+
+Calendar audit + **interactive** priority setting. This section protects Timon's time and helps him decide what to work on — it does NOT hand him a finished plan.
+
+- **Peak protection**: Identify the morning deep-work block. Is it protected or fragmented by meetings?
+- **Team calendar context**: Show what colleagues have scheduled (Aisling's JPM calls, Jack's meetings, etc.) so Timon sees the full picture of who is doing what today.
+- **Subtraction candidates** (Lütke): "The 10am meeting has produced no decisions 3 weeks running. Consider cancelling."
+- **Probing questions with options**: Instead of a prescriptive sequence, present 2-3 focused questions that force a priority decision. Each question has a recommended option. Example:
+
+  > **Focus question:** The risk disclosure tickets (ARD-574, ARD-551) advance AMC launch directly. The tech stack audit (ARD-558) doesn't. Which is your morning focus?
+  > - **(A) Risk tickets** [recommended — directly unblocks AMC external readiness]
+  > - (B) Tech stack audit
+  > - (C) Something else
+
+  > **Decisions today:** ARD-397 has been open 7 days and blocks Aisling. Slip to 27 Mar, close, or decide now? (~5 min)
+
+  The brief surfaces the highest-leverage choices and lets Timon decide. It challenges if his choice doesn't align with objectives, but doesn't prescribe a rigid sequence.
+
+- **Important:** Only surface decisions and tasks that are genuinely Timon's responsibility. Don't assign vendor follow-ups (JPM, UBS) unless Timon is the actual owner. Check Linear assignees.
+
+### 4. What I Noticed
+
+Pattern Detector output. This is where the brief earns its chief-of-staff role.
+
+- **Automation opportunities**: "You ran PR review loops in 4 of 5 sessions — this should be a skill"
+- **Recurring friction**: "Jeremy hit the same Snowflake auth error in 3 sessions this week — 15 min/day lost"
+- **Misalignment**: "Jack spent 8 hours on website copy — not on any active objective. Is this intentional?"
+- **Anomalies**: Unexpected patterns — spikes, silences, shifts in behaviour
+- **Stalled barrels** (Rabois): People who ship end-to-end that are currently blocked
+
+Each observation should be specific and actionable, not vague.
+
+### 5. What I Handled
+
+Autonomous actions the brief took, PLUS a curated read of what's in each folder. This section should feel like a knowledgeable colleague who read all your email and is telling you what's worth knowing.
+
+- **Email triage summary**: "Processed 32 emails: 18 → Broker Notes, 5 → Newsletters, 4 → Quant & Data, 2 → Invoices, 3 staying in inbox"
+
+- **Folder reads** — the Folder Intelligence agent READS the content and reports what's interesting, not just what arrived:
+  - **Newsletters** (READ ALL, summarise the interesting ones): This is where CPD, learning, and industry awareness lives. For each interesting newsletter, give a 1-2 sentence summary of what it covers and why it matters. E.g. "Ethan Mollick on AI team dynamics — directly relevant to your agent architecture. LlamaIndex on production RAG patterns — worth 10 min." Skip the boring ones silently.
+  - **Broker Notes** (scan, flag notable only): 90% is noise. Only surface if something is genuinely relevant — a research note touching portfolio companies, a methodology paper relevant to Jeremy's process, or a major market event.
+  - **Quant & Data** (scan for standouts): Only mention if genuinely unusual (2σ moves, record positioning). Most is routine.
+  - **Invoices** (quick cost summary): Vendor, amount, any past-due signals.
+  - **Platform Alerts** (cross-check against Platform Health agent): If the Platform Health agent said "green" but Platform Alerts folder has failure notifications, flag the discrepancy.
+
+- **Actionable items remaining in inbox**: list with subject, sender, why it needs attention
+
+The goal: after reading this section, Timon should NOT need to open any of these folders himself. The brief has read them for him and surfaced everything worth knowing.
+
+### 6. Not Today
+
+Things the brief considered surfacing but deliberately excluded, with a one-line reason each. This makes the editorial judgement transparent and trains trust.
+
+Examples:
+- "SCREEN_WEEKLY 3 days stale — normal for Sunday, no action needed"
+- "3 routine PRs merged — no review issues"
+- "Aisling's compliance checklist update — no action needed from you"
+- "12 automated CI notifications — all passed"
+
+If the brief excluded nothing notable, skip this section.
+
+### 7. Stale Decisions
+
+Items carried forward for 3+ days without resolution. Each gets an inline forcing prompt:
+
+```
+**ARD-397** (7 days) — Backup pricing decision. Blocking Aisling's AMC onboarding work.
+→ **Slip** to [date] | **Close** (done/irrelevant) | **Decide now**
+```
+
+Type 1 decisions (irreversible) get forced at 2 days. Type 2 at 3 days.
+
+If no stale decisions exist, skip this section.
 
 ## Delta Awareness
 
-When a previous brief is available, compare today's agent findings against it and surface what actually changed. The reader should never have to diff two briefs mentally.
+When a previous brief is available, compare findings against it and surface what actually changed.
 
-### Action tagging
+### Tagging
 
-Every item in the actions block gets exactly one tag:
+- **`[NEW]`** — first appearance
+- **`[CHANGED]`** — present before but status/urgency/context shifted
+- **`[CARRY-OVER]`** — unchanged from previous brief
 
-- **`[NEW]`** — first appearance; not in the previous brief
-- **`[CHANGED]`** — present before but status, urgency, or context shifted
-- **`[CARRY-OVER]`** — unchanged from the previous brief
-
-### Structural rules
-
-- **Lead with new and changed items** in both the actions table and exec summary. These are what the reader opened the brief for.
-- **Collapse carry-over actions** into a compact block at the bottom of the actions section, e.g.: *"Still open from previous briefs: ARD-396 (2d), Bloomberg audit (2d), ..."* — one line per item with days-open count.
-- **Exec summary opens with delta** — start with "Since yesterday: ..." (or "Since last brief: ..." for multi-day gaps) followed by the handful of new developments, then a one-liner on what's unchanged.
-- **Skip re-analysing meetings already covered** — if a meeting appeared in the previous brief, note "covered in yesterday's brief" and only surface genuinely new insights or follow-up developments.
+Lead with new and changed items in section 2. Collapse carry-overs into compact format. Skip re-analysing meetings already covered — note "covered in yesterday's brief" and only surface new follow-ups.
 
 ### When no previous brief exists
 
-First run or after a gap: treat everything as `[NEW]` and omit the delta framing. Don't mention the absence of a previous brief.
+First run or after a gap: treat everything as `[NEW]` and omit the delta framing.
+
+## Voice
+
+### Keep (Ardevora style)
+- British spelling throughout (colour, optimise, behaviour, summarise)
+- Serious peer tone — no hype, no superlatives, no exclamation marks
+- Claims proportional to evidence
+- Conclusion-first within each section
+- Full candour on interpersonal dynamics and meeting tension
+- Personal items (Laura's calendar) woven naturally, not segregated
+
+### Add (Chief of Staff)
+- **Opinionated when evidence supports it** — "This is higher leverage than what you planned" is good
+- **Challenge the plan** — if today's schedule doesn't advance objectives, say so
+- **Surface what the reader doesn't want to hear** — stale decisions, misaligned effort, uncomfortable truths
+- **PDB assessment model** — lead with the assessment, follow with evidence, state confidence level
+- **Pre-digest, don't add load** — "4 items need you, 28 were filed" not "here are 32 emails"
+- **Constrained choices where possible** — "I recommend X. Approve/override?" reduces decision fatigue
+
+### Avoid
+- Dashboard regurgitation (sprint percentages, green/green health tables)
+- Equal-weight treatment (a live benchmark decision matters more than a routine PR merge)
+- Source-by-source reporting (organise by impact, not by which agent returned it)
+- Vague quantities ("many", "several" → use numbers)
+- Superlatives and exclamation marks
+- Section padding (noting a source had no activity)
+
+## Length
+
+- **Sections 1-3**: scannable in 2-3 minutes. This is the essential intelligence.
+- **Sections 4-7**: proportional to what happened. Quiet day = short. Busy day = longer.
+- **Green infrastructure**: one line
+- **Problems and decisions**: expanded with what failed, impact, and recommendation
 
 ## Footer
-
-At the bottom of every brief:
 
 ```
 ---
 Period: {period_start} to {period_end}
-Sources: [list of successful sources] | Failed: [list of failed sources, if any]
+Objectives: {objective_labels}
+Sources: [successful] | Failed: [failed, if any]
 Generated: {timestamp}
 ```
