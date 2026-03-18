@@ -11,10 +11,25 @@
 
 _QUINLAN_PWSH_PATH="C:/Program Files/PowerShell/7/pwsh.exe"
 
-# Export globally so bare `gemini` also uses PowerShell 7.
-if [[ -x "$_QUINLAN_PWSH_PATH" ]]; then
-    export COMSPEC="$_QUINLAN_PWSH_PATH"
-fi
+# Scope COMSPEC override to gemini wrappers only — global export breaks
+# every Windows tool that uses %COMSPEC% (bq, gcloud, Python subprocess).
+# See: quinlan memory/feedback_no_bq_command.md
+
+gemini() {
+    if [[ ! -x "$_QUINLAN_PWSH_PATH" ]]; then
+        echo "[gemini] PowerShell 7 not found: $_QUINLAN_PWSH_PATH" >&2
+        echo "[gemini] Install via: winget install Microsoft.PowerShell" >&2
+        return 1
+    fi
+
+    if ! command -v gemini >/dev/null 2>&1; then
+        echo "[gemini] Gemini CLI not found on PATH." >&2
+        echo "[gemini] Install via: npm install -g @google/gemini-cli" >&2
+        return 1
+    fi
+
+    COMSPEC="$_QUINLAN_PWSH_PATH" command gemini "$@"
+}
 
 g() {
     if [[ ! -x "$_QUINLAN_PWSH_PATH" ]]; then

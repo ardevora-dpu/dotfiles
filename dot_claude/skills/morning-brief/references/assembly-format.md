@@ -81,9 +81,11 @@ Autonomous actions the brief took, PLUS a curated read of what's in each folder.
 
 - **Email triage summary**: "Processed 32 emails: 18 → Broker Notes, 5 → Newsletters, 4 → Quant & Data, 2 → Invoices, 3 staying in inbox"
 
-- **Folder reads** — the Folder Intelligence agent READS the content and reports what's interesting, not just what arrived:
-  - **Newsletters** (READ ALL, summarise the interesting ones): This is where CPD, learning, and industry awareness lives. For each interesting newsletter, give a 1-2 sentence summary of what it covers and why it matters. E.g. "Ethan Mollick on AI team dynamics — directly relevant to your agent architecture. LlamaIndex on production RAG patterns — worth 10 min." Skip the boring ones silently.
-  - **Broker Notes** (scan, flag notable only): 90% is noise. Only surface if something is genuinely relevant — a research note touching portfolio companies, a methodology paper relevant to Jeremy's process, or a major market event.
+- **Folder reads** — the Folder Intelligence agent READS the content and reports what's genuinely interesting, not just what arrived. Filter by quality, not category — a great piece on any topic beats a mediocre piece on Timon's exact domain. Skip marketing fluff, vendor promos, and updates on things that have been obvious for a long time.
+  - **Newsletters** (PRIMARY — curated highlights): Present 2-4 best items with 1-2 sentence summaries + why it matters + estimated read time. Skip the rest silently. Timon can ask Claude to expand on any item he wants to drill into.
+    - Tag CPD-eligible items with [CPD] — Timon is FCA-regulated and needs to demonstrate professional development informally (investment methodology, risk management, regulatory, compliance, market structure).
+    - **Surface events**: London/UK in-person meetups, free online webinars under 1 hour, and paid conferences worth the investment. Include: name, date, location, one-line assessment. E.g. "S&P ECM webinar: IPO Renaissance — Thu 19 Mar, 14:00 GMT, online free. Good AMC launch context. [CPD]"
+  - **Broker Notes** (scan, flag notable only): 90% is noise. Only surface methodology papers, portfolio-company research, major market events, or CPD-eligible content. Tag with [CPD] where applicable.
   - **Quant & Data** (scan for standouts): Only mention if genuinely unusual (2σ moves, record positioning). Most is routine.
   - **Invoices** (quick cost summary): Vendor, amount, any past-due signals.
   - **Platform Alerts** (cross-check against Platform Health agent): If the Platform Health agent said "green" but Platform Alerts folder has failure notifications, flag the discrepancy.
