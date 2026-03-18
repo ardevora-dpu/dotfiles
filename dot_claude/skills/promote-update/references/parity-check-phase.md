@@ -20,7 +20,7 @@ Use inline reasoning (not a standalone script) to verify settings parity policy.
 - `model=opus`
 - `enabledPlugins` includes `pyright-lsp`
 4. Jeremy-only keys present:
-- `autoUpdatesChannel=stable`
+- `autoUpdatesChannel=latest`
 5. Backup script includes:
 - `settings.json`
 - `settings.local.json`
