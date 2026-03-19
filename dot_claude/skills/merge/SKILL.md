@@ -192,7 +192,26 @@ This applies to:
 - `workspaces/jeremy/.claude/skills/**`
 - `workspaces/jeremy/docs/**`
 - `workspaces/jeremy/scripts/**`
-- Git-backed durable Jeremy paths such as `meta/`, `coordination/`, `process_notes/`, `oic-framework/`, and durable `evidence/**/*.md`
+- `workspaces/jeremy/meta/**`
+- `workspaces/jeremy/coordination/**`
+- `workspaces/jeremy/sessions/**`
+- `workspaces/jeremy/deliverables/**`
+- `workspaces/jeremy/curated/**`
+- `workspaces/jeremy/reviews/**`
+- `workspaces/jeremy/process_notes/**`
+- `workspaces/jeremy/oic-framework/**`
+- `workspaces/jeremy/watchlist.json`
+- `workspaces/jeremy/peer-groups.jsonl`
+- `workspaces/jeremy/evidence/**/*.md`
+- `workspaces/jeremy/evidence/**/research_registry.csv`
+
+Do not generate receipts for Azure-only operational paths such as `scratch/`, transcript corpora, charts, `.companion-state.json`, or `workspaces/jeremy/.claude/settings.local.json`.
+
+Refresh remote refs before building receipts so `origin/main` and any checkpoint ref are current:
+
+```bash
+git fetch origin
+```
 
 Use the repo helper to build the receipts:
 
@@ -205,11 +224,13 @@ uv run python scripts/dev/build_shared_receipts.py \
   path/to/changed/file1 path/to/changed/file2
 ```
 
-For checkpoint-promotion PRs, use the checkpoint ref as the source:
+For checkpoint-promotion PRs, use the exact `checkpoint_ref` recorded in `promotion-plan.json` as the source. Do not hard-code `origin/jeremy/checkpoints/live`.
 
 ```bash
+CHECKPOINT_REF="origin/jeremy/checkpoints/archive-20260319-101508"  # from promotion-plan.json
+
 uv run python scripts/dev/build_shared_receipts.py \
-  --base-ref origin/jeremy/checkpoints/live \
+  --base-ref "$CHECKPOINT_REF" \
   --target-ref HEAD \
   --source-origin checkpoint \
   --pr "$PR_NUMBER" \
