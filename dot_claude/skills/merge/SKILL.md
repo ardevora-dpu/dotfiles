@@ -182,6 +182,42 @@ Wait for Timon's response. Handle:
 
 Write the entry as an individual fragment file at `changelog/{PR_NUMBER}.json`.
 
+### 5.1a Jeremy `shared_git` receipts
+
+If the PR changes any Jeremy Git-backed workspace paths, also add `shared_update_receipts` to the fragment.
+
+This applies to:
+- `workspaces/jeremy/CLAUDE.md`
+- `workspaces/jeremy/.claude/rules/**`
+- `workspaces/jeremy/.claude/skills/**`
+- `workspaces/jeremy/docs/**`
+- `workspaces/jeremy/scripts/**`
+- Git-backed durable Jeremy paths such as `meta/`, `coordination/`, `process_notes/`, `oic-framework/`, and durable `evidence/**/*.md`
+
+Use the repo helper to build the receipts:
+
+```bash
+uv run python scripts/dev/build_shared_receipts.py \
+  --base-ref origin/main \
+  --target-ref HEAD \
+  --source-origin main \
+  --pr "$PR_NUMBER" \
+  path/to/changed/file1 path/to/changed/file2
+```
+
+For checkpoint-promotion PRs, use the checkpoint ref as the source:
+
+```bash
+uv run python scripts/dev/build_shared_receipts.py \
+  --base-ref origin/jeremy/checkpoints/live \
+  --target-ref HEAD \
+  --source-origin checkpoint \
+  --pr "$PR_NUMBER" \
+  path/to/promoted/file1 path/to/promoted/file2
+```
+
+Only include receipts for Jeremy `shared_git` paths that really changed. The goal is exact `X -> Y` proof, not broad coverage.
+
 **Entry structure:**
 
 ```json
@@ -202,6 +238,7 @@ Write the entry as an individual fragment file at `changelog/{PR_NUMBER}.json`.
     "Added ~/.quinlan-update-state.json for tracking",
     "Refactored Phase 4 to read from CHANGELOG.json"
   ],
+  "shared_update_receipts": [],
   "author": "timon"
 }
 ```
@@ -221,6 +258,7 @@ For technical-only PRs (no highlight):
     "Removed unused packages/signals/",
     "Updated Python to 3.11.13"
   ],
+  "shared_update_receipts": [],
   "author": "timon"
 }
 ```
