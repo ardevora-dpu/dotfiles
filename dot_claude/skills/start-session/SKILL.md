@@ -1,15 +1,15 @@
 ---
 name: start-session
 description: >
-  Bootstrap dev sessions from Linear tickets. Creates worktree,
-  opens WezTerm tab with Claude + Codex layout, primes agents
-  with ticket context. Use when starting work on one or more tickets.
+  Bootstrap dev sessions from Linear tickets. Creates worktrees, primes agents
+  with full ticket context and a critical thinking gate, launches WezTerm tabs
+  with Claude Code + Codex. Use when starting work on one or more tickets.
 argument-hint: "ARD-383 or 383 or ARD-215 ARD-383"
 ---
 
 # Start Session
 
-Bootstrap a full development session from Linear ticket references. Creates a git worktree, opens a WezTerm tab with the `dev` layout (Claude Code + Codex), primes agents with ticket context, and moves the ticket to In Progress.
+Bootstrap development sessions from Linear tickets. Each ticket gets an isolated git worktree, a WezTerm tab with the `dev` layout (Claude Code + Codex), and a dynamically crafted priming prompt that injects full ticket context and forces independent verification before implementation.
 
 **For Timon only.** Platform: Windows native (Git Bash + WezTerm).
 
@@ -22,185 +22,227 @@ Bootstrap a full development session from Linear ticket references. Creates a gi
 /start-session 215 383
 ```
 
-Flexible input: full identifiers (`ARD-383`), bare numbers (`383`), or mixed. Space-separated for multiple tickets. Each ticket gets its own worktree and WezTerm tab.
-
-## Prerequisites
-
-- WezTerm running with at least one window open
-- Linear MCP available (for ticket resolution and status updates)
-- Git access to quinlan repo (current session must be in a quinlan worktree)
-- `dev` function available in shell (from quinlan-shell modules — launches Claude Code + Codex layout)
-- Run this skill from **Windows Git Bash** in a Windows worktree path (`E:/...`), not from WSL or `/mnt/...`
+Flexible: full identifiers, bare numbers, or mixed. Space-separated for multiple.
 
 ## Workflow
 
-Process each ticket through all phases before moving to the next.
+### Phase 0: Preflight
 
-### Phase 0: Platform + Path Preflight (hard guard)
-
-Before resolving tickets, validate the runtime context:
+Validate before doing anything:
 
 ```bash
 UNAME_S="$(uname -s)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 ```
 
-Fail fast and stop if either is true:
+**Hard stop** if not Windows Git Bash (`MINGW*`/`MSYS*`) or repo root is a Linux path. Print:
 
-- Not Windows Git Bash (`$UNAME_S` is not `MINGW*` or `MSYS*`)
-- Repo root is a Linux path (`/home/...` or `/mnt/...`)
-
-When this guard fails, print a clear instruction and do not continue:
-
-```text
-start-session must run from Windows Git Bash in a Windows worktree path (for example E:/projects/main_workspace/quinlan-ard-483).
-Do not run start-session from WSL or /mnt paths.
+```
+start-session must run from Windows Git Bash in a Windows worktree path.
 ```
 
-### Phase 1: Parse and Resolve Tickets
+Then **update main** to ensure worktrees branch from the latest code:
 
-1. **Normalise input** — Convert all references to `ARD-{N}` format:
-   - `383` → `ARD-383`
-   - `ard-383` → `ARD-383`
-   - `ARD-383` → already normalised
-
-2. **Fetch from Linear** — For each normalised identifier:
-   - `mcp__linear__get_issue` with the identifier, `includeRelations: true`
-   - Extract: `id` (UUID), `identifier`, `title`, `gitBranchName`, current `state`
-   - If not found: warn and skip that ticket
-   - If state is Done or Cancelled: warn and ask before proceeding
-
-3. **Derive worktree directory name** — `quinlan-ard-{N}` (lowercase number only, e.g. `quinlan-ard-383`)
-
-### Phase 2: Worktree Setup
-
-Resolve the main repo root via `git rev-parse --show-toplevel`. Worktrees are sibling directories to the main repo.
-
-**Critical: always use absolute paths for worktree creation.** Relative paths resolve from cwd, which may be a subdirectory — this creates the worktree inside the repo instead of beside it.
-
-Compute the absolute worktree path:
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-WORKTREE_PATH="$(dirname "$REPO_ROOT")/quinlan-ard-{N}"
+git fetch origin && git checkout main && git pull origin main
 ```
 
-1. **Check existing worktrees** — `git worktree list`
-   - If a worktree already exists at `$WORKTREE_PATH`:
-     - Check its branch matches `gitBranchName` from Linear
-     - **Match:** reuse it, report "Reusing existing worktree"
-     - **Mismatch:** warn user with current vs expected branch, ask whether to proceed or recreate
+### Phase 1: Parse and Resolve
 
-2. **Create new worktree** (if it doesn't exist):
+Normalise all inputs to `ARD-{N}` format, then fetch each ticket from Linear with `mcp__linear__get_issue` (includeRelations: true) and `mcp__linear__list_comments`.
 
-   Try in order until one succeeds:
+Extract per ticket: identifier, title, description, labels, priority, gitBranchName, status, createdBy, relations (blockers, related), all comments.
 
-   ```bash
-   # Branch doesn't exist yet — create it
-   git worktree add "$WORKTREE_PATH" -b {gitBranchName}
+If a ticket is Done or Cancelled, warn and ask before proceeding.
 
-   # Branch already exists locally — check it out
-   git worktree add "$WORKTREE_PATH" {gitBranchName}
+### Phase 2: Parallel Setup (Agent Team)
 
-   # Branch exists on remote only — fetch and create local tracking branch
-   git fetch origin {gitBranchName}
-   git worktree add "$WORKTREE_PATH" -b {gitBranchName} origin/{gitBranchName}
-   ```
+**Spawn one named Agent per ticket, all in a single message.** Each agent handles everything for its ticket independently. Name agents by ticket number (e.g., `ard-510`).
 
-3. **No `gitBranchName` from Linear** — If the field is empty or null, derive one:
-   `tvanrensburg/ard-{N}-{slugified-title}` (lowercase, hyphens, max ~60 chars)
+Each agent receives a prompt containing:
+- The full ticket data (from Phase 1)
+- Instructions for the setup steps below
 
-### Phase 3: Write Prompt Files + Launch
+#### What each agent does:
 
-Both Claude Code and Codex support initial prompts via file convention. Write both prompt files to the **Windows worktree root** — `dev` handles copying the Codex prompt to WSL internally.
+**2a. Create worktree**
 
-1. **Write `.claude-init-prompt`** to the worktree root (Claude template below)
-2. **Write `.codex-init-prompt`** to the worktree root (Codex template below)
-3. **Spawn a new WezTerm tab** in the worktree's Timon workspace (so `dev` resolves git context correctly):
+Worktrees are siblings to the main repo at `$(dirname "$REPO_ROOT")/quinlan-ard-{N}`.
 
-   ```bash
-   pane_id=$(wezterm cli spawn --cwd "$WORKTREE_PATH/workspaces/timon")
-   ```
+- Check `git worktree list` — reuse if it exists with the matching branch
+- Otherwise create: try `-b {branch}` first, then bare `{branch}`, then `fetch origin + tracking branch`
+- If no `gitBranchName` from Linear, derive: `tvanrensburg/ard-{N}-{slugified-title}`
 
-4. **Wait for shell init, then launch dev layout.** The shell runs `auto-env.sh` on entry which may trigger `uv sync`, and `dev` now performs a dotfiles sync gate unless you pass `--no-sync` — this can take several seconds. Wait long enough for the prompt to be ready:
+**2b. Propagate settings**
 
-   ```bash
-   sleep 5
-   wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev\n'
-   ```
+Copy both settings files from the git root to `$WORKTREE_PATH/workspaces/timon/.claude/`:
 
-   `dev` handles the full layout: splits into 2 panes (Claude Code | Codex), copies `.codex-init-prompt` from Windows to WSL, mirrors the WSL worktree, and starts both tools. `cc` picks up `.claude-init-prompt`; the codex launch command picks up `.codex-init-prompt`. Both launch directly into the priming task.
-
-#### Claude Priming Prompt Template
-
-Substitute `{IDENTIFIER}` and `{TITLE}` from the resolved Linear ticket:
-
-```
-You are starting work on Linear ticket {IDENTIFIER} ("{TITLE}"). This is a fresh session — orient yourself before writing code.
-
-1. Fetch the full ticket: use mcp__linear__get_issue for {IDENTIFIER}, then mcp__linear__list_comments to read all discussion
-2. Understand the scope: what is being asked, what has been discussed, decisions already made
-3. Scan the relevant codebase — let the ticket description and comments guide which files and packages matter
-4. Present a brief summary: what the ticket asks for, what you found, and your proposed approach
-
-Do not start implementation until you have presented your understanding and I have confirmed.
+```bash
+cp "$REPO_ROOT/.claude/settings.json" "$WORKTREE_PATH/workspaces/timon/.claude/settings.json"
+cp "$REPO_ROOT/.claude/settings.local.json" "$WORKTREE_PATH/workspaces/timon/.claude/settings.local.json"
 ```
 
-#### Codex Priming Prompt Template
+This prevents the MCP server approval popup in new worktrees.
 
-Codex doesn't have Linear MCP, so the prompt focuses on codebase orientation:
+**2c. Craft the priming prompt**
 
-```
-You are starting work on Linear ticket {IDENTIFIER} ("{TITLE}"). Orient yourself before writing code.
+Build a dynamic prompt from the ticket data. See the **Priming Prompt** section below — this is the most important part of the skill.
 
-1. Read CLAUDE.md and workspaces/timon/CLAUDE.md for project context
-2. Scan the relevant codebase — the ticket title should guide which files and packages matter
-3. Present a brief summary of what you found and wait for instructions
+**2d. Write prompt files + launch tab**
 
-Do not start implementation until you receive explicit direction.
-```
+The `dev` function natively reads init prompt files from the worktree root and passes them to each tool at launch. Write the **same prompt** to both files:
 
-### Phase 5: Update Linear Status
+```bash
+# Delete any stale prompt files from prior runs first
+rm -f "$WORKTREE_PATH/.claude-init-prompt" "$WORKTREE_PATH/.codex-init-prompt"
 
-For each ticket, update state based on the current state:
-
-| Current state | Action |
-|---------------|--------|
-| `Todo` or `Backlog` | `mcp__linear__save_issue(id: "<uuid>", state: "In Progress")` |
-| `In Progress` or `In Review` | Skip — already active |
-| `Done` or `Cancelled` | Already warned in Phase 1 |
-
-### Phase 6: Report
-
-Present a summary table after all tickets are processed:
-
-```
-Session setup complete:
-
-| Ticket  | Branch                          | Worktree        | Status        | Primed |
-|---------|---------------------------------|-----------------|---------------|--------|
-| ARD-383 | tvanrensburg/ard-383-feature    | quinlan-ard-383 | → In Progress | Yes    |
-| ARD-215 | tvanrensburg/ard-215-fix        | quinlan-ard-215 | Already active| Yes    |
+# Write the crafted prompt to BOTH files (same content, model-agnostic)
+# .claude-init-prompt → picked up by cc (Claude Code)
+# .codex-init-prompt  → picked up by dev's codex launcher
 ```
 
-Include any warnings or errors encountered during processing.
+Then spawn a WezTerm tab, wait for shell init, and launch `dev`:
+
+```bash
+pane_id=$(wezterm cli spawn --cwd "$WORKTREE_PATH/workspaces/timon")
+sleep 5
+wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'dev\n'
+```
+
+`dev` handles the rest: reads the prompt files, passes them to each tool, and deletes the files after reading. No `send-text` prompt delivery needed — the file convention is the primary mechanism.
+
+**2f. Update Linear status**
+
+Move `Todo` or `Backlog` tickets to `In Progress`. Skip if already active.
+
+**2g. Report back**
+
+Return: ticket ID, branch, worktree path, status change, any warnings.
+
+### Phase 3: Collect and Report
+
+After all agents complete, present a summary table:
+
+```
+| Ticket  | Branch               | Worktree        | Status         | Primed |
+|---------|--------------------- |-----------------|----------------|--------|
+| ARD-510 | timon/ard-510-...    | quinlan-ard-510 | Already active | Yes    |
+| ARD-551 | timon/ard-551-...    | quinlan-ard-551 | → In Progress  | Yes    |
+```
+
+Include any warnings (blockers, Done tickets, missing branches).
+
+---
+
+## Priming Prompt
+
+The orchestrating Claude crafts this dynamically from real ticket data. Both Claude Code and Codex in the worktree receive the **same prompt** — it must be model-agnostic (no MCP-specific instructions).
+
+### Structure
+
+The prompt has four sections. Adapt the tone and emphasis based on what you find in the ticket.
+
+#### 1. Context Injection
+
+Embed the full ticket content so the agent starts fully informed:
+
+- **Ticket ID, title, priority, due date** (if set)
+- **Full description** — the complete text, not a summary
+- **Labels** — these signal ticket type (Bug, research-harness, Improvement, etc.)
+- **Related tickets** — with titles, so the agent understands the neighbourhood
+- **Blockers** — with current status (is the blocker resolved?)
+- **All comments** — discussion often contains decisions not in the description
+- **Branch name** — so the agent knows where it is
+- **Created by** — signals whether this is Timon's own ticket or from Jeremy/Jack
+
+#### 2. Critical Thinking Gate
+
+This section prevents the agent from treating the ticket as gospel.
+
+The core instruction: **"This ticket was written by an AI agent in a previous session. Treat the problem statement and any proposed approach as a hypothesis, not a confirmed diagnosis."**
+
+Adapt the framing based on ticket type:
+
+- **Bug tickets** (labels: Bug, data-quality): "Show evidence you can reproduce or locate the failure. What alternative root causes exist? Could the problem be upstream or downstream of where the ticket points?"
+- **Research/evaluation tickets** (labels: research-harness, Improvement, or description contains 'evaluate', 'assess', 'audit'): "Survey the landscape beyond this ticket. What does the broader ecosystem look like? Use web search and codebase exploration to understand the taxonomy of the problem."
+- **Implementation tickets** (clear specs, no ambiguity): "Show you understand the current state and blast radius. Is this the simplest approach that works?"
+- **All tickets**: "Take a holistic view. What hasn't been considered?"
+
+#### 3. Origin Trace (conditional)
+
+Include this section **only when the ticket content signals external origins:**
+
+- Description references a meeting, call, or specific date in a "Context" section
+- Description says "discussed", "agreed", "decided" without full inline context
+- Ticket was created by someone other than the assignee (e.g., Jack or Jeremy created it for Timon)
+
+When triggered: "This ticket references external discussion that may not be fully captured. Search for the original source — Otter transcripts, email threads, Teams messages — to ensure you have the complete picture."
+
+When NOT triggered: omit this section entirely.
+
+#### 4. Verification Gate
+
+The final instruction, always present:
+
+"Present your independent assessment before proposing any approach. Show what you verified, what evidence you found, and whether you agree with the ticket's framing. Do not start implementation until you have presented your understanding and it has been confirmed."
+
+### Example (what a crafted prompt looks like)
+
+For ARD-558 ("Tech stack audit: updated service list for forecast"):
+
+```
+## Linear Ticket ARD-558: Tech stack audit: updated service list for forecast
+
+**Priority:** Unset | **Due:** 2026-03-16 (overdue) | **Labels:** none
+**Branch:** timon/ard-558-tech-stack-audit-updated-service-list-for-forecast
+**Created by:** Jack Algeo (j.algeo@ardevora.com)
+
+### Description
+[full description text here]
+
+### Blockers
+- ARD-604: "Grant Timon read-only Xero access for central spend tracking" — Status: [current status]
+
+### Related tickets
+[none]
+
+### Comments
+[all comments]
+
+---
+
+## Your task
+
+This ticket was written based on a team meeting. Treat the scope and approach as a starting hypothesis.
+
+This ticket references a meeting (3 Mar 2026) and was created by Jack, not the assignee. Search for the original meeting context — check Otter transcripts and email threads around that date to understand what was actually discussed and agreed.
+
+Before proposing an approach:
+- Check whether the blocker (ARD-604, Xero access) has been resolved
+- Survey what services and costs are already documented anywhere in the codebase or prior audit outputs
+- Consider whether the scope described matches what was actually agreed in the meeting
+
+Present your independent assessment. Do not start work until your understanding has been confirmed.
+```
+
+---
 
 ## Edge Cases
 
 | Situation | Handling |
 |-----------|----------|
-| Worktree exists, different branch | Warn with current vs expected branch. Ask: reuse, delete and recreate, or skip |
-| WezTerm not running | Detect spawn failure, suggest opening WezTerm first |
-| Linear MCP unavailable | Fall back to manual input — ask Timon for branch name and ticket title |
-| Ticket already Done | Warn and ask "This ticket is marked Done. Start a session anyway?" |
-| No `gitBranchName` from Linear | Derive branch name: `tvanrensburg/ard-{N}-{slugified-title}` |
-| Multiple tickets | Process sequentially. Each gets its own worktree and tab. Report all at end |
-| Branch exists but no worktree | Use `git worktree add` without `-b` flag |
-| Session started from WSL or `/mnt/...` path | Hard-stop in Phase 0 and instruct rerun from Windows Git Bash with `E:/...` repo path |
-| Spawn succeeds but `dev` fails | Prompt files remain; next manual `cc`/`dev` in that worktree picks them up |
+| Worktree exists, wrong branch | Warn with current vs expected. Ask: reuse, recreate, or skip |
+| WezTerm not running | Detect spawn failure, suggest opening WezTerm |
+| Linear MCP unavailable | Ask Timon for branch name and title manually |
+| Ticket is Done/Cancelled | Warn and ask before proceeding |
+| No `gitBranchName` from Linear | Derive: `tvanrensburg/ard-{N}-{slugified-title}` |
+| `settings.local.json` missing at root | Skip propagation, warn (MCP approval will prompt) |
+| Agent team member fails | Report the failure, continue with remaining tickets |
+| `dev` fails to launch | Prompt files remain; next manual `dev` in that worktree picks them up |
 
 ## What This Skill Does NOT Do
 
-- **Run inside the spawned session** — it orchestrates from the current (main) session
-- **Start the layout itself** — it delegates to `dev` for the actual layout and tool startup
-- **Manage WSL worktrees** — `dev` handles WSL mirroring internally
-- **Close or clean up sessions** — use `git worktree remove` when done
+- Run inside the spawned sessions — it orchestrates from the current session
+- Manage WSL worktrees — `dev` handles WSL mirroring
+- Close or clean up sessions — use `git worktree remove` when done
+- Prescribe which tools the primed agents should use — agents choose based on the problem

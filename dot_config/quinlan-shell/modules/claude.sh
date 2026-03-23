@@ -1,26 +1,23 @@
 # Claude Code entrypoint used by both Timon and Jeremy.
-# Base behaviour is isolated task lists per session.
 #
-# Prompt file convention: if .claude-init-prompt exists in the git
-# worktree root, cc reads it as the initial prompt and deletes the
-# file. Used by /start-session to prime new sessions without
-# WezTerm text injection.
+# Prompt file convention: .claude-init-prompt at the git root is read
+# as a positional prompt arg (`claude "prompt"`) which starts an
+# interactive session with that message pre-sent. File is deleted
+# after reading. Used by /start-session.
 
 _quinlan_run_claude() {
-    # Propagate project-level .claude/settings.json to the CWD so Claude
-    # Code picks up the shared permission policy even when launched from a
-    # workspace subdirectory.  The root file is the single source of truth;
-    # workspace copies are gitignored.
     local root
     root="$(git rev-parse --show-toplevel 2>/dev/null)"
-    if [[ -n "$root" && -f "$root/.claude/settings.json" && "$PWD" != "$root" ]]; then
-        mkdir -p "$PWD/.claude"
-        cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
-    fi
-    # Extend workspace to the git root so subagents and skills can read
-    # files anywhere in the repo without workspace trust prompts.
+    # Propagate settings to CWD so Claude picks up permissions + MCP approval.
     if [[ -n "$root" && "$PWD" != "$root" ]]; then
-        claude --add-dir "$root" "$@"
+        mkdir -p "$PWD/.claude"
+        [[ -f "$root/.claude/settings.json" ]] && \
+            cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
+        [[ -f "$root/.claude/settings.local.json" ]] && \
+            cp "$root/.claude/settings.local.json" "$PWD/.claude/settings.local.json"
+    fi
+    if [[ -n "$root" && "$PWD" != "$root" ]]; then
+        claude --add-dir "$root" -- "$@"
     else
         claude "$@"
     fi
@@ -30,16 +27,12 @@ cc() {
     local root
     root="$(git rev-parse --show-toplevel 2>/dev/null)"
 
-    if [[ -n "$root" ]]; then
-        local init_prompt_file="$root/.claude-init-prompt"
-        if [[ -f "$init_prompt_file" ]]; then
-            local init_prompt
-            init_prompt="$(cat "$init_prompt_file")"
-            rm -f "$init_prompt_file"
-            _quinlan_run_claude "$init_prompt" "$@"
-            return
-        fi
+    if [[ -n "$root" && -f "$root/.claude-init-prompt" ]]; then
+        local prompt
+        prompt="$(cat "$root/.claude-init-prompt")"
+        rm -f "$root/.claude-init-prompt"
+        _quinlan_run_claude "$prompt" "$@"
+    else
+        _quinlan_run_claude "$@"
     fi
-
-    _quinlan_run_claude "$@"
 }
