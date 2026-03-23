@@ -37,11 +37,13 @@ config.default_prog = { 'C:/Program Files/Git/bin/bash.exe', '--login', '-i' }
 -- Multiplexer: persistent sessions via AF_UNIX sockets.
 -- GUI crashes/closes → all tabs and shells survive; relaunch reconnects.
 -- Re-enabled after wezterm#4607 fix landed (PRs #5981, #6099, merged Sep 2024).
--- Canary on Timon — tracked in ARD-452.
+-- Canary on Timon — remove user gate once validated. Tracked in ARD-452.
+{{ if contains "Timon" .chezmoi.username -}}
 config.unix_domains = {
   { name = 'unix', skip_permissions_check = true },
 }
 config.default_gui_startup_args = { 'connect', 'unix' }
+{{ end -}}
 
 -- Kitty keyboard disabled globally — Claude Code works fine without it,
 -- and it caused Codex/WSL incompatibility that required mux-heavy detection logic
