@@ -35,6 +35,11 @@ _quinlan_cc_fallback() {
     shift 1
 
     if [[ -n "$root" && "$PWD" != "$root" ]]; then
+        # Propagate project settings to CWD (Claude Code settings are CWD-scoped).
+        if [[ -f "$root/.claude/settings.json" ]]; then
+            mkdir -p "$PWD/.claude"
+            cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
+        fi
         claude --add-dir "$root" "$@"
     else
         claude "$@"
