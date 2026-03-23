@@ -5,34 +5,65 @@
 # interactive session with that message pre-sent. File is deleted
 # after reading. Used by /start-session.
 
-_quinlan_run_claude() {
-    local root
-    root="$(git rev-parse --show-toplevel 2>/dev/null)"
-    # Propagate settings to CWD so Claude picks up permissions + MCP approval.
-    if [[ -n "$root" && "$PWD" != "$root" ]]; then
-        mkdir -p "$PWD/.claude"
-        [[ -f "$root/.claude/settings.json" ]] && \
-            cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
-        [[ -f "$root/.claude/settings.local.json" ]] && \
-            cp "$root/.claude/settings.local.json" "$PWD/.claude/settings.local.json"
+_quinlan_repo_root() {
+    git rev-parse --show-toplevel 2>/dev/null
+}
+
+_quinlan_repo_runtime_script() {
+    local root="$1"
+    printf '%s/scripts/dev/shell-runtime.sh' "$root"
+}
+
+_quinlan_load_repo_runtime() {
+    local root="$1" script
+
+    if [[ -z "$root" ]]; then
+        return 1
     fi
+
+    script="$(_quinlan_repo_runtime_script "$root")"
+    if [[ ! -f "$script" ]]; then
+        return 1
+    fi
+
+    # shellcheck disable=SC1090
+    source "$script"
+}
+
+_quinlan_cc_fallback() {
+    local root="$1"
+    shift 1
+
     if [[ -n "$root" && "$PWD" != "$root" ]]; then
-        claude --add-dir "$root" -- "$@"
+        # Propagate project settings to CWD (Claude Code settings are CWD-scoped).
+        if [[ -f "$root/.claude/settings.json" ]]; then
+            mkdir -p "$PWD/.claude"
+            cp "$root/.claude/settings.json" "$PWD/.claude/settings.json"
+        fi
+        claude --add-dir "$root" "$@"
     else
         claude "$@"
     fi
 }
 
 cc() {
-    local root
-    root="$(git rev-parse --show-toplevel 2>/dev/null)"
+    local root prompt
+
+    root="$(_quinlan_repo_root)" || root=""
+
+    if _quinlan_load_repo_runtime "$root" && declare -F _quinlan_runtime_cc >/dev/null 2>&1; then
+        _quinlan_runtime_cc "$@"
+        return
+    fi
 
     if [[ -n "$root" && -f "$root/.claude-init-prompt" ]]; then
-        local prompt
         prompt="$(cat "$root/.claude-init-prompt")"
         rm -f "$root/.claude-init-prompt"
-        _quinlan_run_claude "$prompt" "$@"
-    else
-        _quinlan_run_claude "$@"
+        # -- separates flags from the positional prompt arg
+        _quinlan_cc_fallback "$root" -- "$prompt" "$@"
+        return
     fi
+
+    # No --, so flags like --resume pass through correctly
+    _quinlan_cc_fallback "$root" "$@"
 }

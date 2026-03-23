@@ -4,11 +4,13 @@ Shell and terminal configuration managed by [chezmoi](https://chezmoi.io).
 
 ## Source Of Truth
 
-This repository is the source of truth for home-directory shell/runtime config.
+This repository is the source of truth for home-directory bootstrap config.
 
 - Edit files here.
 - Apply with `chezmoi apply --force`.
 - Do not edit `~/.bashrc` or `~/.wezterm.lua` directly.
+- Quinlan-specific launcher behaviour now lives in the active repo when
+  `scripts/dev/shell-runtime.sh` is present.
 
 ## Deployed Files
 
@@ -18,9 +20,9 @@ This repository is the source of truth for home-directory shell/runtime config.
 | `dot_bashrc` | `~/.bashrc` | Module loader |
 | `dot_config/quinlan-shell/modules/path.sh` | `~/.config/quinlan-shell/modules/path.sh` | PATH and workspace root setup |
 | `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
-| `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | Base `cc` launcher |
+| `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | `cc` loader and repo runtime handoff |
 | `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
-| `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex commands (`c`, `dev`) |
+| `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex repo runtime handoff (`c`, `dev`) |
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
 | `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
@@ -34,6 +36,8 @@ Deployment-time gating controls user-specific payload; no runtime role file is u
 - Shared modules (all users): `path`, `auto-env`, `claude`, `project`
 - Timon-only modules: `codex-wsl`
 - Jeremy receives only shared modules
+- Home-managed launchers only bootstrap and delegate; `c` and `dev` require
+  an active repo runtime and do not carry a home-directory fallback.
 
 `cc` behaviour: isolated task list per session (default for all users).
 
