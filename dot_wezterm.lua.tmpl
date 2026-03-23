@@ -34,16 +34,14 @@ config.set_environment_variables = {
 
 config.default_prog = { 'C:/Program Files/Git/bin/bash.exe', '--login', '-i' }
 
--- Multiplexer: disabled until WezTerm nightly (with termsync/mux fix) is validated.
--- Stable 20240203 has broken synchronized output through mux (wezterm#4607),
--- which garbles Claude Code's Ink-based TUI rendering.
--- Plan: upgrade to nightly, re-enable mux, canary on Timon for 1-2 weeks,
--- then promote to Jeremy. Tracked in ARD-452.
---
--- config.unix_domains = {
---   { name = 'unix', skip_permissions_check = true },
--- }
--- config.default_gui_startup_args = { 'connect', 'unix' }
+-- Multiplexer: persistent sessions via AF_UNIX sockets.
+-- GUI crashes/closes → all tabs and shells survive; relaunch reconnects.
+-- Re-enabled after wezterm#4607 fix landed (PRs #5981, #6099, merged Sep 2024).
+-- Canary on Timon — tracked in ARD-452.
+config.unix_domains = {
+  { name = 'unix', skip_permissions_check = true },
+}
+config.default_gui_startup_args = { 'connect', 'unix' }
 
 -- Kitty keyboard disabled globally — Claude Code works fine without it,
 -- and it caused Codex/WSL incompatibility that required mux-heavy detection logic
@@ -206,8 +204,9 @@ config.scrollback_lines = 15000
 -- Suppress notifications when focused on the source pane (Claude Code uses OSC 777)
 config.notification_handling = "SuppressFromFocusedPane"
 
--- Bell: visual only (tab turns red), no audible beep
-config.audible_bell = "Disabled"
+-- Bell: visual (tab turns red) + audible (system beep)
+-- Claude Code's Stop hook sends \a — WezTerm handles both indicators natively
+config.audible_bell = "SystemBeep"
 
 -- Dim inactive panes (visual feedback for which pane has focus)
 config.inactive_pane_hsb = {
