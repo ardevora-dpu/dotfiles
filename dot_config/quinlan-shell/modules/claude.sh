@@ -35,7 +35,7 @@ _quinlan_cc_fallback() {
     shift 1
 
     if [[ -n "$root" && "$PWD" != "$root" ]]; then
-        claude --add-dir "$root" -- "$@"
+        claude --add-dir "$root" "$@"
     else
         claude "$@"
     fi
@@ -54,9 +54,11 @@ cc() {
     if [[ -n "$root" && -f "$root/.claude-init-prompt" ]]; then
         prompt="$(cat "$root/.claude-init-prompt")"
         rm -f "$root/.claude-init-prompt"
-        _quinlan_cc_fallback "$root" "$prompt" "$@"
+        # -- separates flags from the positional prompt arg
+        _quinlan_cc_fallback "$root" -- "$prompt" "$@"
         return
     fi
 
+    # No --, so flags like --resume pass through correctly
     _quinlan_cc_fallback "$root" "$@"
 }
