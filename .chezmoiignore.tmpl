@@ -12,7 +12,7 @@ compile-helpers.ps1
 
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- $isJeremy := or (eq .chezmoi.username "jeremy") (eq .chezmoi.username "jlang") (eq .chezmoi.username "JL_LAPTOP\\jlang") (eq .chezmoi.username "AzureAD\\JeremyLang") -}}
-{{- $isJack := or (eq .chezmoi.username "jack") (eq .chezmoi.username "jalgeo") (eq .chezmoi.username "AzureAD\\JackAlgeo") -}}
+{{- $isJack := or (eq .chezmoi.username "jack") (eq .chezmoi.username "jacka") (eq .chezmoi.username "jalgeo") (eq .chezmoi.username "AzureAD\\JackAlgeo") (eq .chezmoi.username "JA_LAPTOP\\jacka") -}}
 
 {{- /* Claude user settings are only managed for Timon, Jeremy, and Jack profiles. */ -}}
 {{- if and (not $isTimon) (not $isJeremy) (not $isJack) }}
@@ -34,6 +34,6 @@ compile-helpers.ps1
 dot_claude/CLAUDE.md
 dot_claude/skills/**
 dot_codex/**
-dot_config/quinlan-shell/modules/codex-wsl.sh
+dot_config/quinlan-shell/modules/codex.sh
 dot_config/quinlan-shell/modules/gemini.sh
 {{- end }}
