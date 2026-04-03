@@ -32,6 +32,10 @@ if [[ ! -d "$_QUINLAN_MODULE_ROOT" ]]; then
     echo "[quinlan-shell] Run: chezmoi apply --force" >&2
 else
     _quinlan_source_required_module "path.sh"
+
+    # Activate mise (replaces static shims with dynamic PATH rewriting).
+    command -v mise >/dev/null 2>&1 && eval "$(mise activate zsh)"
+
     _quinlan_source_required_module "auto-env.sh"
     _quinlan_source_required_module "claude.sh"
     _quinlan_source_required_module "project.sh"
