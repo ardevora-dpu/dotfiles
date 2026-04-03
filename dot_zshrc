@@ -49,7 +49,7 @@ else
     # The precmd hook handles subsequent directory changes, but Ghostty's
     # shell integration can break fds during hook execution — running here
     # first means the idempotency guard in env.sh prevents re-execution.
-    _quinlan_auto_env
+    typeset -f _quinlan_auto_env >/dev/null 2>&1 && _quinlan_auto_env
 fi
 
 unset -f _quinlan_source_required_module
