@@ -1,6 +1,10 @@
 # Auto-source project env when entering a repo that has scripts/dev/env.sh.
 
 _quinlan_auto_env() {
+    # Re-entrancy guard: env.sh may cd, which triggers chpwd, which calls us again.
+    [[ -n "${_QUINLAN_AUTO_ENV_RUNNING:-}" ]] && return
+    _QUINLAN_AUTO_ENV_RUNNING=1
+
     local dir="$PWD"
 
     while [[ "$dir" != "/" ]]; do
@@ -9,10 +13,13 @@ _quinlan_auto_env() {
                 # shellcheck source=/dev/null
                 source "$dir/scripts/dev/env.sh"
             fi
+            unset _QUINLAN_AUTO_ENV_RUNNING
             return
         fi
         dir="$(dirname "$dir")"
     done
+
+    unset _QUINLAN_AUTO_ENV_RUNNING
 }
 
 # Tell WezTerm the shell's real CWD via OSC 7. Without this, WezTerm

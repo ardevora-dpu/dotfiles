@@ -40,6 +40,12 @@ else
     _quinlan_source_optional_module "codex.sh"
     _quinlan_source_optional_module "gemini.sh"
     _quinlan_source_optional_module "local.sh"
+
+    # Run auto-env once now during .zshrc sourcing (clean fd state).
+    # The precmd hook handles subsequent directory changes, but Ghostty's
+    # shell integration can break fds during hook execution — running here
+    # first means the idempotency guard in env.sh prevents re-execution.
+    _quinlan_auto_env
 fi
 
 unset -f _quinlan_source_required_module
