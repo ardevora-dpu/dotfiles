@@ -22,7 +22,7 @@ This repository is the source of truth for home-directory bootstrap config.
 | `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
 | `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | `cc` loader and repo runtime handoff |
 | `dot_config/quinlan-shell/modules/project.sh` | `~/.config/quinlan-shell/modules/project.sh` | `p` project picker |
-| `dot_config/quinlan-shell/modules/codex-wsl.sh` | `~/.config/quinlan-shell/modules/codex-wsl.sh` | Timon-only WSL/Codex repo runtime handoff (`c`, `dev`) |
+| `dot_config/quinlan-shell/modules/codex.sh` | `~/.config/quinlan-shell/modules/codex.sh` | Timon-only Codex repo runtime handoff (`c`, `dev`) |
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
 | `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
@@ -34,7 +34,7 @@ This repository is the source of truth for home-directory bootstrap config.
 Deployment-time gating controls user-specific payload; no runtime role file is used in `.bashrc`.
 
 - Shared modules (all users): `path`, `auto-env`, `claude`, `project`
-- Timon-only modules: `codex-wsl`
+- Timon-only modules: `codex`
 - Jeremy receives only shared modules
 - Home-managed launchers only bootstrap and delegate; `c` and `dev` require
   an active repo runtime and do not carry a home-directory fallback.

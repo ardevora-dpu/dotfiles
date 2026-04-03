@@ -1,4 +1,4 @@
-# Timon-only Codex launch commands for Windows -> WSL worktree parity.
+# Timon-only Codex launch commands for Windows-native Codex.
 #
 # The canonical implementation lives in the active repo at
 # scripts/dev/shell-runtime.sh. This module only resolves the active repo
@@ -41,8 +41,8 @@ _quinlan_repo_runtime_dispatch() {
         return
     fi
 
-    echo "[codex-wsl] Quinlan runtime not available here." >&2
-    echo "[codex-wsl] Open a quinlan worktree with scripts/dev/shell-runtime.sh for c/dev." >&2
+    echo "[codex] Quinlan runtime not available here." >&2
+    echo "[codex] Open a quinlan worktree with scripts/dev/shell-runtime.sh for c/dev." >&2
     return 1
 }
 
@@ -53,3 +53,4 @@ c() {
 dev() {
     _quinlan_repo_runtime_dispatch dev "$@"
 }
+

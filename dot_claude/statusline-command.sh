@@ -40,21 +40,65 @@ if [[ -n "$ticker" ]]; then
     ticker_part="${BOLD_MAGENTA}${ticker}${RESET}"
 fi
 
-# 1. Git branch (dim — stable context)
+# 1. Session context: conversation title + git safety indicator
 branch=""
+session_label=""
+git_prefix=""
+
+# Detect main branch as a safety signal (applies to all users)
 if [[ -n "$cwd" ]] && git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null || true)
+    if [[ "$branch" == "main" || "$branch" == "master" ]]; then
+        git_prefix="${YELLOW}[main]${RESET} "
+    fi
+fi
+
+# Claude Code conversation title from WezTerm pane (preferred over branch).
+# Cached to /tmp to avoid calling wezterm cli on every status line update.
+# Claude Code titles have a single-char non-ASCII spinner prefix + space
+# (e.g. "✳ Scaffold Astro project"). Shell/program titles don't match
+# this pattern ("bash", "vim file", "quinlan-ard-731").
+if [[ -n "$WEZTERM_PANE" ]]; then
+    _sl_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-${TEMP:-/tmp}}}/claude-statusline-$(id -u 2>/dev/null || echo "$USER")"
+    _sl_cache="${_sl_dir}/${WEZTERM_PANE}"
+    _sl_refresh=true
+    if [[ -f "$_sl_cache" ]]; then
+        # Portable mtime check: GNU stat uses -c %Y, BSD/macOS uses -f %m
+        _sl_mtime=$(stat -c %Y "$_sl_cache" 2>/dev/null || stat -f %m "$_sl_cache" 2>/dev/null || echo 0)
+        _sl_age=$(( $(date +%s) - _sl_mtime ))
+        (( _sl_age < 10 )) && _sl_refresh=false
+    fi
+    if $_sl_refresh; then
+        mkdir -p "$_sl_dir" 2>/dev/null
+        wezterm cli list --format json 2>/dev/null \
+          | jq -r --arg pid "$WEZTERM_PANE" \
+            '.[] | select(.pane_id == ($pid | tonumber)) | .title // empty' \
+          > "$_sl_cache" 2>/dev/null || true
+    fi
+    raw_title=$(cat "$_sl_cache" 2>/dev/null)
+    if [[ -n "$raw_title" ]]; then
+        prefix="${raw_title%% *}"
+        if [[ ${#prefix} -eq 1 && "$prefix" != "$raw_title" ]]; then
+            stripped="${raw_title#* }"
+            [[ ${#stripped} -gt 3 ]] && session_label="$stripped"
+        fi
+    fi
+fi
+
+# Fallback to git branch when no conversation title is available
+if [[ -z "$session_label" && -n "$branch" ]]; then
+    session_label="($branch)"
 fi
 
 branch_part=""
-if [[ -n "$branch" ]]; then
-    branch_part="${CYAN}(${branch})${RESET}"
+if [[ -n "$session_label" ]]; then
+    branch_part="${git_prefix}${CYAN}${session_label}${RESET}"
 fi
 
 # 2. Model in dim (stable info, doesn't need to shout)
 model_part=""
 if [[ -n "$model" ]]; then
-    model_part="\033[37m${model}${RESET}"
+    model_part="${DIM}${model}${RESET}"
 fi
 
 # 3. Cost in yellow (money = gold)
