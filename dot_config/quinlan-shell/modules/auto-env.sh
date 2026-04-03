@@ -22,17 +22,29 @@ _quinlan_auto_env() {
     unset _QUINLAN_AUTO_ENV_RUNNING
 }
 
-# Tell WezTerm the shell's real CWD via OSC 7. Without this, WezTerm
-# walks the process tree and may find pyright's node.exe (CWD dist/dist/),
-# causing tab titles to show "dist" and new tabs to open in the wrong dir.
+# Tell the terminal the shell's real CWD via OSC 7. On Windows (WezTerm),
+# this prevents tab titles showing child-process CWDs like dist/. On macOS
+# (Ghostty), this enables Cmd+T to open new tabs in the current directory.
 _quinlan_osc7_cwd() {
-    # cygpath -m converts POSIX paths (/e/projects/...) to Windows mixed-mode
-    # (E:/projects/...) so WezTerm can parse the drive letter correctly.
-    # Without this, WezTerm sees /e/... which isn't a valid Windows path,
-    # causing new tabs to fall back to ~ or produce doubled paths (/c/c/...).
-    # Guard: cygpath only exists in MSYS2/Git Bash, not WSL.
-    command -v cygpath >/dev/null 2>&1 || return
-    printf '\e]7;file:///%s\e\\' "$(cygpath -m "$PWD")"
+    local uri
+    case "$OSTYPE" in
+        msys*|cygwin*)
+            # cygpath converts POSIX paths to Windows mixed-mode for WezTerm.
+            command -v cygpath >/dev/null 2>&1 || return
+            uri="file:///$(cygpath -m "$PWD")"
+            ;;
+        *)
+            # macOS / Linux: standard file URI with hostname.
+            uri="file://$(hostname)$PWD"
+            ;;
+    esac
+
+    printf '\e]7;%s\e\\' "$uri"
+
+    # Inside tmux, the above is intercepted for #{pane_current_path} and not
+    # forwarded to the outer terminal. Send again via DCS passthrough so
+    # Ghostty receives it — needed for Cmd+T new-tab CWD inheritance.
+    [[ -n "${TMUX:-}" ]] && printf '\ePtmux;\e\e]7;%s\e\e\\\e\\' "$uri"
 }
 
 # Disable focus reporting (CSI ?1004) to prevent bell storms.
