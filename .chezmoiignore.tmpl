@@ -1,15 +1,3 @@
-{{- /* Skip Windows-only helpers and Claude mutations on non-Windows hosts. */ -}}
-{{- /* .chezmoiignore matches destination paths, not source filenames. */ -}}
-{{- if ne .chezmoi.os "windows" }}
-run_once_compile-helpers.ps1
-compile-helpers.ps1
-.claude.json
-.claude.json.ps1
-.claude/settings.json
-.claude/settings.json.ps1
-.claude/statusline-command.sh
-{{- end }}
-
 {{- $isTimon := or (eq .chezmoi.username "chimern") (eq .chezmoi.username "AzureAD\\TimonvanRensburg") -}}
 {{- $isJeremy := or (eq .chezmoi.username "jeremy") (eq .chezmoi.username "jlang") (eq .chezmoi.username "JL_LAPTOP\\jlang") (eq .chezmoi.username "AzureAD\\JeremyLang") -}}
 {{- $isJack := or (eq .chezmoi.username "jack") (eq .chezmoi.username "jacka") (eq .chezmoi.username "jalgeo") (eq .chezmoi.username "AzureAD\\JackAlgeo") (eq .chezmoi.username "JA_LAPTOP\\jacka") -}}
@@ -17,16 +5,13 @@ compile-helpers.ps1
 {{- /* Claude user settings are only managed for Timon, Jeremy, and Jack profiles. */ -}}
 {{- if and (not $isTimon) (not $isJeremy) (not $isJack) }}
 .claude.json
-.claude.json.ps1
 .claude/settings.json
-.claude/settings.json.ps1
 .claude/statusline-command.sh
 {{- end }}
 
 {{- /* User-level MCP servers: Timon + Jack only (Jeremy does not need otter). */ -}}
 {{- if and (not $isTimon) (not $isJack) }}
 .claude.json
-.claude.json.ps1
 {{- end }}
 
 {{- /* Timon-only payload: do not deploy for other users (including Jeremy). */ -}}

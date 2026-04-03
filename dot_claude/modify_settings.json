@@ -1,0 +1,30 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* chezmoi:template:line-endings=native */ -}}
+{{- $raw := .chezmoi.stdin | trim -}}
+{{- $data := dict -}}
+{{- if $raw -}}
+{{-   $data = fromJson $raw -}}
+{{- end -}}
+{{- $username := .chezmoi.username -}}
+{{- $isTimon := or (eq $username "chimern") (eq $username "AzureAD\\TimonvanRensburg") -}}
+{{- $isJeremy := or (eq $username "jeremy") (eq $username "jlang") (eq $username "JL_LAPTOP\\jlang") (eq $username "AzureAD\\JeremyLang") -}}
+{{- $isJack := or (eq $username "jack") (eq $username "jacka") (eq $username "jalgeo") (eq $username "AzureAD\\JackAlgeo") (eq $username "JA_LAPTOP\\jacka") -}}
+{{- $home := .chezmoi.homeDir | replaceAllRegex "\\\\" "/" -}}
+{{- $statuslineCommand := printf "bash %s/.claude/statusline-command.sh" $home -}}
+{{- $data = setValueAtPath "statusLine" (dict "type" "command" "command" $statuslineCommand) $data -}}
+{{- $data = setValueAtPath "env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "1" $data -}}
+{{- if eq .chezmoi.os "windows" -}}
+{{-   $bashEnv := printf "%s/.config/quinlan-shell/bash-env.sh" $home -}}
+{{-   $data = setValueAtPath "env.BASH_ENV" $bashEnv $data -}}
+{{- else -}}
+{{-   $data = deleteValueAtPath "env.BASH_ENV" $data -}}
+{{- end -}}
+{{- $data = deleteValueAtPath "skipDangerousModePermissionPrompt" $data -}}
+{{- $data = setValueAtPath "autoUpdatesChannel" "latest" $data -}}
+{{- if $isTimon -}}
+{{-   $data = setValueAtPath "model" "opus" $data -}}
+{{-   $data = setValueAtPath "enabledPlugins.pyright-lsp@claude-plugins-official" true $data -}}
+{{- else if or $isJeremy $isJack -}}
+{{-   $data = deleteValueAtPath "enabledPlugins.pyright-lsp@claude-plugins-official" $data -}}
+{{- end -}}
+{{- $data | toPrettyJson -}}

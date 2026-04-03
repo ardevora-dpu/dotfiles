@@ -51,7 +51,7 @@ cc() {
 
     root="$(_quinlan_repo_root)" || root=""
 
-    if _quinlan_load_repo_runtime "$root" && declare -F _quinlan_runtime_cc >/dev/null 2>&1; then
+    if _quinlan_load_repo_runtime "$root" && command -v _quinlan_runtime_cc >/dev/null 2>&1; then
         _quinlan_runtime_cc "$@"
         return
     fi

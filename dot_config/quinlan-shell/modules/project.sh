@@ -35,7 +35,7 @@ _quinlan_workspace_context_dir() {
     fi
 
     if [[ -z "$user_name" ]]; then
-        user_name="${USER,,}"
+        user_name="$(printf '%s' "${USER:-}" | tr '[:upper:]' '[:lower:]')"
     fi
 
     case "$user_name" in

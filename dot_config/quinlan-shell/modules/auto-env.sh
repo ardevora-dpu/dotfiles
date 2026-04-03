@@ -36,6 +36,17 @@ _quinlan_reset_focus_reporting() {
     printf '\e[?1004l'
 }
 
-if [[ "${PROMPT_COMMAND:-}" != *"_quinlan_auto_env"* ]]; then
+if [[ -n "${ZSH_VERSION:-}" ]]; then
+    autoload -Uz add-zsh-hook 2>/dev/null || true
+    if [[ -z "${_QUINLAN_AUTO_ENV_ZSH_REGISTERED:-}" ]]; then
+        # chpwd makes repo entry immediate; precmd is the safety net that matches
+        # bash's prompt-driven refresh if the working tree changes underneath us.
+        add-zsh-hook chpwd _quinlan_auto_env
+        add-zsh-hook precmd _quinlan_reset_focus_reporting
+        add-zsh-hook precmd _quinlan_osc7_cwd
+        add-zsh-hook precmd _quinlan_auto_env
+        _QUINLAN_AUTO_ENV_ZSH_REGISTERED=1
+    fi
+elif [[ "${PROMPT_COMMAND:-}" != *"_quinlan_auto_env"* ]]; then
     PROMPT_COMMAND="_quinlan_reset_focus_reporting;_quinlan_osc7_cwd;_quinlan_auto_env${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi

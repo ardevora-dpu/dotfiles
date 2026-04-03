@@ -1,0 +1,15 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* chezmoi:template:line-endings=native */ -}}
+{{- $raw := .chezmoi.stdin | trim -}}
+{{- $data := dict -}}
+{{- if $raw -}}
+{{-   $data = fromJson $raw -}}
+{{- end -}}
+{{- $username := .chezmoi.username -}}
+{{- $isTimon := or (eq $username "chimern") (eq $username "AzureAD\\TimonvanRensburg") -}}
+{{- $isJack := or (eq $username "jack") (eq $username "jacka") (eq $username "jalgeo") (eq $username "AzureAD\\JackAlgeo") (eq $username "JA_LAPTOP\\jacka") -}}
+{{- if or $isTimon $isJack -}}
+{{-   $servers := dict "otter" (dict "type" "http" "url" "https://mcp.otter.ai/mcp") -}}
+{{-   $data = setValueAtPath "mcpServers" $servers $data -}}
+{{- end -}}
+{{- $data | toPrettyJson -}}
