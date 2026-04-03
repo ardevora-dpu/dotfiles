@@ -1,20 +1,5 @@
-# Quinlan bash profile
-# Managed by chezmoi. Do not edit ~/.bashrc directly.
-
-_quinlan_uname="$(uname -s 2>/dev/null || true)"
-case "$_quinlan_uname" in
-    MINGW*|MSYS*|CYGWIN*)
-        export CLAUDE_CODE_GIT_BASH_PATH='C:\Program Files\Git\bin\bash.exe'
-        # BASH_ENV: sourced by bash for non-interactive shells (Claude Code sandbox).
-        # Also set in ~/.claude/settings.json env block for launch-context independence.
-        export BASH_ENV="$HOME/.config/quinlan-shell/bash-env.sh"
-        ;;
-    *)
-        unset CLAUDE_CODE_GIT_BASH_PATH
-        unset BASH_ENV
-        ;;
-esac
-unset _quinlan_uname
+# Quinlan zsh profile
+# Managed by chezmoi. Do not edit ~/.zshrc directly.
 
 _QUINLAN_MODULE_ROOT="$HOME/.config/quinlan-shell/modules"
 

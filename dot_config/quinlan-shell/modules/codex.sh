@@ -36,7 +36,7 @@ _quinlan_repo_runtime_dispatch() {
     local root
     root="$(_quinlan_repo_root)" || root=""
 
-    if _quinlan_load_repo_runtime "$root" && declare -F "_quinlan_runtime_${command}" >/dev/null 2>&1; then
+    if _quinlan_load_repo_runtime "$root" && command -v "_quinlan_runtime_${command}" >/dev/null 2>&1; then
         "_quinlan_runtime_${command}" "$@"
         return
     fi
@@ -53,4 +53,3 @@ c() {
 dev() {
     _quinlan_repo_runtime_dispatch dev "$@"
 }
-

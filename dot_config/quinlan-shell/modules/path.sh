@@ -98,6 +98,12 @@ if (( _quinlan_is_windows_shell )); then
         mise_shims="$(_win_path "$LOCALAPPDATA")/mise/shims"
         _quinlan_path_prepend_if_dir "$mise_shims"
     fi
+elif [[ "$_quinlan_uname" == "Darwin" ]]; then
+    _quinlan_path_prepend_if_dir "$HOME/.local/share/mise/shims"
+    _quinlan_path_prepend_if_dir "/usr/local/sbin"
+    _quinlan_path_prepend_if_dir "/usr/local/bin"
+    _quinlan_path_prepend_if_dir "/opt/homebrew/sbin"
+    _quinlan_path_prepend_if_dir "/opt/homebrew/bin"
 fi
 
 if [[ -z "${WORKSPACE_ROOT:-}" && -f "$HOME/.quinlan-repo" ]]; then

@@ -8,7 +8,7 @@ This repository is the source of truth for home-directory bootstrap config.
 
 - Edit files here.
 - Apply with `chezmoi apply --force`.
-- Do not edit `~/.bashrc` or `~/.wezterm.lua` directly.
+- Do not edit `~/.bashrc`, `~/.zshrc`, or `~/.wezterm.lua` directly.
 - Quinlan-specific launcher behaviour now lives in the active repo when
   `scripts/dev/shell-runtime.sh` is present.
 
@@ -18,6 +18,7 @@ This repository is the source of truth for home-directory bootstrap config.
 |---|---|---|
 | `dot_bash_profile` | `~/.bash_profile` | Login shell bootstrap |
 | `dot_bashrc` | `~/.bashrc` | Module loader |
+| `dot_zshrc` | `~/.zshrc` | macOS zsh bootstrap |
 | `dot_config/quinlan-shell/modules/path.sh` | `~/.config/quinlan-shell/modules/path.sh` | PATH and workspace root setup |
 | `dot_config/quinlan-shell/modules/auto-env.sh` | `~/.config/quinlan-shell/modules/auto-env.sh` | Auto-source `scripts/dev/env.sh` |
 | `dot_config/quinlan-shell/modules/claude.sh` | `~/.config/quinlan-shell/modules/claude.sh` | `cc` loader and repo runtime handoff |
@@ -26,7 +27,9 @@ This repository is the source of truth for home-directory bootstrap config.
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
 | `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
-| `run_once_compile-helpers.ps1` | one-time run | Build helper executables on Windows |
+| `modify_dot_claude.json` | `~/.claude.json` | Managed Claude home MCP servers (modify-template) |
+| `dot_claude/modify_settings.json` | `~/.claude/settings.json` | Managed Claude home settings (modify-template) |
+| `dot_claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Claude Code status line command |
 | `scripts/clip2png.cs` | `~/scripts/clip2png.cs` | Clipboard image helper source |
 
 ## Behaviour Model
