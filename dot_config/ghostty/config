@@ -1,0 +1,61 @@
+# Quinlan Ghostty config
+
+# --- Font ---
+font-family = JetBrainsMono NF
+font-size = 14
+
+# --- Theme ---
+theme = Catppuccin Mocha
+
+# --- Window ---
+window-decoration = true
+window-padding-x = 8
+window-padding-y = 4
+window-padding-balance = true
+
+# --- Cursor ---
+cursor-style = bar
+cursor-style-blink = false
+
+# --- Shell integration ---
+shell-integration = zsh
+shell-integration-features = cursor,sudo,title
+
+# --- Scrollback ---
+scrollback-limit = 50000
+
+# --- Clipboard ---
+clipboard-read = allow
+clipboard-write = allow
+copy-on-select = clipboard
+
+# --- Mouse ---
+mouse-scroll-multiplier = 3
+
+# --- Auto-start tmux ---
+command = /Users/chimern/.config/ghostty/tmux-start.sh
+
+# --- Misc ---
+confirm-close-surface = false
+quit-after-last-window-closed = false
+
+# --- tmux Cmd shortcuts (no prefix needed) ---
+# Each sends Ctrl+A (\x01 = tmux prefix2) + action in one keypress.
+# Mirrors WezTerm leader bindings for muscle memory.
+# Cmd+T stays native (new Ghostty tab). Cmd+C/V stay native (copy/paste).
+#
+# Splits
+keybind = super+h=text:\x01h
+keybind = super+d=text:\x01v
+# Pane navigation
+keybind = super+left=text:\x01\x1b[D
+keybind = super+down=text:\x01\x1b[B
+keybind = super+up=text:\x01\x1b[A
+keybind = super+right=text:\x01\x1b[C
+# Pane/session lifecycle
+keybind = super+x=text:\x01x
+keybind = super+shift+x=text:\x01Q
+keybind = super+z=text:\x01z
+# Session picker + reload
+keybind = super+w=text:\x01w
+keybind = super+r=text:\x01r
