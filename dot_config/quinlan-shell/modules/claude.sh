@@ -101,11 +101,10 @@ _quinlan_slot_parse_account() {
     if [[ -d "$HOME/.claude/slots/$first" ]]; then
         _QUINLAN_PARSED_ACCOUNT="$first"
         _QUINLAN_PARSED_SHIFT=1
-    elif [[ ${#first} -le 12 ]]; then
-        echo "[cc] Unknown account '$first'. Available: $(ls -1 "$HOME/.claude/slots/" 2>/dev/null | tr '\n' ' ')" >&2
-        echo "[cc] If this is a prompt, use: cc -- $first" >&2
-        return 1
     fi
+    # If the token doesn't match a slot, pass it through as a prompt.
+    # The repo-owned _quinlan_runtime_cc has stricter guards (env var
+    # lookup + short-token rejection) that don't apply here.
 }
 
 _quinlan_cc_fallback() {
