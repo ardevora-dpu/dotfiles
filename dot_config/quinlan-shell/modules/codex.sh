@@ -16,8 +16,12 @@ _quinlan_codex_ensure_env() {
     fi
     [[ -n "$repo_root" && -f "$repo_root/scripts/dev/env.sh" ]] || return 1
 
+    # env.sh may cd into the repo when PWD is outside the tree.
+    # Save and restore so the caller stays where they are.
+    local _saved_pwd="$PWD"
     # shellcheck disable=SC1091
     source "$repo_root/scripts/dev/env.sh"
+    cd "$_saved_pwd" 2>/dev/null || true
 }
 
 c() {
