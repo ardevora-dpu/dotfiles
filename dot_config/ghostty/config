@@ -35,6 +35,15 @@ mouse-scroll-multiplier = 3
 # --- Auto-start tmux ---
 command = /Users/chimern/.config/ghostty/tmux-start.sh
 
+# --- Notifications ---
+# Bell: play macOS system alert sound + dock bounce + tab badge
+bell-features = system,attention,title
+
+# Notify when long-running commands finish (requires shell integration)
+notify-on-command-finish = unfocused
+notify-on-command-finish-action = bell,notify
+notify-on-command-finish-after = 10s
+
 # --- Misc ---
 confirm-close-surface = false
 quit-after-last-window-closed = false
