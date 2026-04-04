@@ -1,55 +1,48 @@
-# Timon-only Codex launch commands for Windows-native Codex.
+# Codex and dev-layout launchers.
 #
-# The canonical implementation lives in the active repo at
-# scripts/dev/shell-runtime.sh. This module only resolves the active repo
-# and hands off to that runtime.
+# Inside a Quinlan worktree the canonical implementation in
+# scripts/dev/shell-runtime.sh is sourced and used.  Outside Quinlan,
+# `c` loads project secrets and applies standard flags, but skips
+# workspace cd and O-Drive env vars.
 
-_quinlan_repo_root() {
-    git rev-parse --show-toplevel 2>/dev/null
-}
+_quinlan_codex_ensure_env() {
+    # Already loaded this session (by auto-env or a previous call).
+    [[ -n "${_QUINLAN_ENV_ROOT:-}" ]] && return 0
 
-_quinlan_repo_runtime_script() {
-    local root="$1"
-    printf '%s/scripts/dev/shell-runtime.sh' "$root"
-}
-
-_quinlan_load_repo_runtime() {
-    local root="$1" script
-
-    if [[ -z "$root" ]]; then
-        return 1
+    # Locate the repo via the persistent pointer.
+    local repo_root=""
+    if [[ -f "$HOME/.quinlan-repo" ]]; then
+        repo_root="$(tr -d '\r\n' < "$HOME/.quinlan-repo")"
     fi
+    [[ -n "$repo_root" && -f "$repo_root/scripts/dev/env.sh" ]] || return 1
 
-    script="$(_quinlan_repo_runtime_script "$root")"
-    if [[ ! -f "$script" ]]; then
-        return 1
-    fi
-
-    # shellcheck disable=SC1090
-    source "$script"
-}
-
-_quinlan_repo_runtime_dispatch() {
-    local command="$1"
-    shift
-
-    local root
-    root="$(_quinlan_repo_root)" || root=""
-
-    if _quinlan_load_repo_runtime "$root" && command -v "_quinlan_runtime_${command}" >/dev/null 2>&1; then
-        "_quinlan_runtime_${command}" "$@"
-        return
-    fi
-
-    echo "[codex] Quinlan runtime not available here." >&2
-    echo "[codex] Open a quinlan worktree with scripts/dev/shell-runtime.sh for c/dev." >&2
-    return 1
+    # shellcheck disable=SC1091
+    source "$repo_root/scripts/dev/env.sh"
 }
 
 c() {
-    _quinlan_repo_runtime_dispatch c "$@"
+    local root
+    root="$(_quinlan_repo_root)" || root=""
+
+    if _quinlan_load_repo_runtime "$root" && command -v _quinlan_runtime_c >/dev/null 2>&1; then
+        _quinlan_runtime_c "$@"
+        return
+    fi
+
+    # Outside Quinlan: load secrets and apply standard flags.
+    _quinlan_codex_ensure_env 2>/dev/null || true
+    codex -a never -s danger-full-access "$@"
 }
 
 dev() {
-    _quinlan_repo_runtime_dispatch dev "$@"
+    local root
+    root="$(_quinlan_repo_root)" || root=""
+
+    if _quinlan_load_repo_runtime "$root" && command -v _quinlan_runtime_dev >/dev/null 2>&1; then
+        _quinlan_runtime_dev "$@"
+        return
+    fi
+
+    echo "[dev] Requires a Quinlan worktree (creates a Claude + Codex layout)." >&2
+    return 1
 }
