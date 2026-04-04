@@ -53,13 +53,14 @@ if [[ -n "$cwd" ]] && git -C "$cwd" rev-parse --is-inside-work-tree >/dev/null 2
     fi
 fi
 
-# Claude Code conversation title from WezTerm pane (preferred over branch).
-# Cached to /tmp to avoid calling wezterm cli on every status line update.
+# Claude Code conversation title from terminal pane (preferred over branch).
+# Cached to /tmp to avoid IPC on every status line update (10s TTL).
 # Claude Code titles have a single-char non-ASCII spinner prefix + space
 # (e.g. "✳ Scaffold Astro project"). Shell/program titles don't match
 # this pattern ("bash", "vim file", "quinlan-ard-731").
+_sl_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-${TEMP:-/tmp}}}/claude-statusline-$(id -u 2>/dev/null || echo "$USER")"
+
 if [[ -n "$WEZTERM_PANE" ]]; then
-    _sl_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-${TEMP:-/tmp}}}/claude-statusline-$(id -u 2>/dev/null || echo "$USER")"
     _sl_cache="${_sl_dir}/${WEZTERM_PANE}"
     _sl_refresh=true
     if [[ -f "$_sl_cache" ]]; then
@@ -74,6 +75,27 @@ if [[ -n "$WEZTERM_PANE" ]]; then
           | jq -r --arg pid "$WEZTERM_PANE" \
             '.[] | select(.pane_id == ($pid | tonumber)) | .title // empty' \
           > "$_sl_cache" 2>/dev/null || true
+    fi
+    raw_title=$(cat "$_sl_cache" 2>/dev/null)
+    if [[ -n "$raw_title" ]]; then
+        prefix="${raw_title%% *}"
+        if [[ ${#prefix} -eq 1 && "$prefix" != "$raw_title" ]]; then
+            stripped="${raw_title#* }"
+            [[ ${#stripped} -gt 3 ]] && session_label="$stripped"
+        fi
+    fi
+elif [[ -n "$TMUX" ]]; then
+    # tmux path: read pane title set by Claude Code via OSC 0/2.
+    _sl_cache="${_sl_dir}/tmux-${TMUX_PANE:-default}"
+    _sl_refresh=true
+    if [[ -f "$_sl_cache" ]]; then
+        _sl_mtime=$(stat -c %Y "$_sl_cache" 2>/dev/null || stat -f %m "$_sl_cache" 2>/dev/null || echo 0)
+        _sl_age=$(( $(date +%s) - _sl_mtime ))
+        (( _sl_age < 10 )) && _sl_refresh=false
+    fi
+    if $_sl_refresh; then
+        mkdir -p "$_sl_dir" 2>/dev/null
+        tmux display-message -p -t "${TMUX_PANE:-}" '#{pane_title}' > "$_sl_cache" 2>/dev/null || true
     fi
     raw_title=$(cat "$_sl_cache" 2>/dev/null)
     if [[ -n "$raw_title" ]]; then
