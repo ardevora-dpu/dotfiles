@@ -32,8 +32,8 @@ copy-on-select = clipboard
 # --- Mouse ---
 mouse-scroll-multiplier = 3
 
-# --- Auto-start tmux ---
-command = /Users/chimern/.config/ghostty/tmux-start.sh
+# --- Auto-start tmux (sole multiplexer) ---
+command = /opt/homebrew/bin/tmux new -A -s main
 
 # --- Notifications ---
 # Bell: play macOS system alert sound + dock bounce + tab badge
@@ -50,12 +50,37 @@ quit-after-last-window-closed = false
 
 # --- tmux Cmd shortcuts (no prefix needed) ---
 # Each sends Ctrl+A (\x01 = tmux prefix2) + action in one keypress.
-# Mirrors WezTerm leader bindings for muscle memory.
-# Cmd+T stays native (new Ghostty tab). Cmd+C/V stay native (copy/paste).
+# tmux is the sole multiplexer — Ghostty native tabs are not used.
+# Cmd+C/V stay native (copy/paste).
 #
+# Windows (replaces Ghostty native tabs)
+keybind = super+t=text:\x01c
+keybind = super+digit_1=unbind
+keybind = super+digit_2=unbind
+keybind = super+digit_3=unbind
+keybind = super+digit_4=unbind
+keybind = super+digit_5=unbind
+keybind = super+digit_6=unbind
+keybind = super+digit_7=unbind
+keybind = super+digit_8=unbind
+keybind = super+digit_9=unbind
+keybind = super+1=text:\x01\x31
+keybind = super+2=text:\x01\x32
+keybind = super+3=text:\x01\x33
+keybind = super+4=text:\x01\x34
+keybind = super+5=text:\x01\x35
+keybind = super+6=text:\x01\x36
+keybind = super+7=text:\x01\x37
+keybind = super+8=text:\x01\x38
+keybind = super+9=text:\x01\x39
+# Session cycling
+keybind = super+]=text:\x01)
+keybind = super+[=text:\x01(
 # Splits
+keybind = super+d=text:\x01d
+keybind = super+shift+d=text:\x01D
 keybind = super+h=text:\x01h
-keybind = super+d=text:\x01v
+keybind = super+j=text:\x01v
 # Pane navigation
 keybind = super+left=text:\x01\x1b[D
 keybind = super+down=text:\x01\x1b[B
