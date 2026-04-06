@@ -165,6 +165,20 @@ cc-fix() {
         return
     fi
 
-    echo "[cc-fix] Only available inside a Quinlan worktree." >&2
-    return 1
+    # Fallback: resolve slot ourselves when outside a Quinlan worktree.
+    local account="${1:-}"
+    if [[ -z "$account" ]]; then
+        echo "[cc-fix] Usage: cc-fix <account>  (e.g. cc-fix timon)" >&2
+        return 1
+    fi
+
+    local slot_dir="$HOME/.claude/slots/$account"
+    if [[ ! -d "$slot_dir" ]]; then
+        echo "[cc-fix] No slot directory for '$account'." >&2
+        return 1
+    fi
+
+    echo "[cc-fix] Re-authenticating slot: $account" >&2
+    CLAUDE_CONFIG_DIR="$slot_dir" claude auth logout 2>/dev/null || true
+    CLAUDE_CONFIG_DIR="$slot_dir" claude auth login
 }
