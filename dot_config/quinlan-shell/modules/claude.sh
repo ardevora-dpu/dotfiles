@@ -155,3 +155,30 @@ cc() {
     # No --, so flags like --resume pass through correctly
     _quinlan_cc_fallback "$root" "$@"
 }
+
+cc-fix() {
+    local root
+    root="$(_quinlan_repo_root)" || root=""
+
+    if _quinlan_load_repo_runtime "$root" && command -v _quinlan_runtime_cc_fix >/dev/null 2>&1; then
+        _quinlan_runtime_cc_fix "$@"
+        return
+    fi
+
+    # Fallback: resolve slot ourselves when outside a Quinlan worktree.
+    local account="${1:-}"
+    if [[ -z "$account" ]]; then
+        echo "[cc-fix] Usage: cc-fix <account>  (e.g. cc-fix timon)" >&2
+        return 1
+    fi
+
+    local slot_dir="$HOME/.claude/slots/$account"
+    if [[ ! -d "$slot_dir" ]]; then
+        echo "[cc-fix] No slot directory for '$account'." >&2
+        return 1
+    fi
+
+    echo "[cc-fix] Re-authenticating slot: $account" >&2
+    CLAUDE_CONFIG_DIR="$slot_dir" claude auth logout 2>/dev/null || true
+    CLAUDE_CONFIG_DIR="$slot_dir" claude auth login
+}
