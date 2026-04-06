@@ -155,3 +155,16 @@ cc() {
     # No --, so flags like --resume pass through correctly
     _quinlan_cc_fallback "$root" "$@"
 }
+
+cc-fix() {
+    local root
+    root="$(_quinlan_repo_root)" || root=""
+
+    if _quinlan_load_repo_runtime "$root" && command -v _quinlan_runtime_cc_fix >/dev/null 2>&1; then
+        _quinlan_runtime_cc_fix "$@"
+        return
+    fi
+
+    echo "[cc-fix] Only available inside a Quinlan worktree." >&2
+    return 1
+}

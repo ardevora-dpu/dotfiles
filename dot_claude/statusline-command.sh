@@ -8,9 +8,9 @@ cwd=$(echo "$input"       | jq -r '.cwd // empty')
 model=$(echo "$input"     | jq -r '.model.display_name // empty')
 cost=$(echo "$input"      | jq -r '.cost.total_cost_usd // empty')
 remaining=$(echo "$input" | jq -r '.context_window.remaining_percentage // empty')
-added=$(echo "$input"     | jq -r '.cost.total_lines_added // empty')
-removed=$(echo "$input"   | jq -r '.cost.total_lines_removed // empty')
 session_id=$(echo "$input" | jq -r '.session_id // empty')
+rate_5h=$(echo "$input"   | jq -r '.rate_limits.five_hour.used_percentage // empty')
+rate_7d=$(echo "$input"   | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
 # ANSI colours — grouped by purpose
 RESET='\033[0m'
@@ -21,6 +21,19 @@ YELLOW='\033[33m'
 GREEN='\033[32m'
 RED='\033[31m'
 BLUE='\033[94m'
+
+rate_colour() {
+    local pct="${1:-0}"
+    local pct_int=0
+    pct_int=$(printf '%.0f' "$pct" 2>/dev/null || echo 0)
+    if (( pct_int >= 80 )); then
+        printf '%s' "$RED"
+    elif (( pct_int >= 60 )); then
+        printf '%s' "$YELLOW"
+    else
+        printf '%s' "$GREEN"
+    fi
+}
 
 # 0. Active account from slot directory name
 account_part=""
@@ -144,15 +157,19 @@ if [[ -n "$remaining" ]]; then
     ctx_part="${ctx_color}${ctx_int}% remaining${RESET}"
 fi
 
-# 5. Lines changed in green/red (compact +N/-N)
-lines_part=""
-if [[ -n "$added" || -n "$removed" ]]; then
-    chunks=()
-    [[ -n "$added" && "$added" != "0" ]] && chunks+=("${GREEN}+${added}${RESET}")
-    [[ -n "$removed" && "$removed" != "0" ]] && chunks+=("${RED}-${removed}${RESET}")
-    if [[ ${#chunks[@]} -gt 0 ]]; then
-        lines_part=$(IFS=/; echo "${chunks[*]}")
-    fi
+# 5. Claude.ai rate limits (5h / 7d) when available
+rate_part=""
+rate_chunks=()
+if [[ -n "$rate_5h" ]]; then
+    rate_5h_int=$(printf '%.0f' "$rate_5h" 2>/dev/null)
+    rate_chunks+=("${DIM}5h${RESET} $(rate_colour "$rate_5h")${rate_5h_int}%${RESET}")
+fi
+if [[ -n "$rate_7d" ]]; then
+    rate_7d_int=$(printf '%.0f' "$rate_7d" 2>/dev/null)
+    rate_chunks+=("${DIM}7d${RESET} $(rate_colour "$rate_7d")${rate_7d_int}%${RESET}")
+fi
+if [[ ${#rate_chunks[@]} -gt 0 ]]; then
+    rate_part=$(IFS=' '; echo "${rate_chunks[*]}")
 fi
 
 # Assemble — join non-empty parts with separator (ticker first for visibility)
@@ -162,8 +179,8 @@ parts=()
 [[ -n "$branch_part" ]] && parts+=("$branch_part")
 [[ -n "$model_part"  ]] && parts+=("$model_part")
 [[ -n "$cost_part"   ]] && parts+=("$cost_part")
-[[ -n "$lines_part"  ]] && parts+=("$lines_part")
 [[ -n "$ctx_part"    ]] && parts+=("$ctx_part")
+[[ -n "$rate_part"   ]] && parts+=("$rate_part")
 
 sep=" ${DIM}|${RESET} "
 line=""
