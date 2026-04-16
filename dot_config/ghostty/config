@@ -88,7 +88,7 @@ keybind = super+up=text:\x01\x1b[A
 keybind = super+right=text:\x01\x1b[C
 # Pane/session lifecycle
 keybind = super+x=text:\x01x
-keybind = super+shift+x=text:\x01Q
+keybind = super+shift+x=text:\x01X
 keybind = super+z=text:\x01z
 # Session picker + reload
 keybind = super+w=text:\x01w
