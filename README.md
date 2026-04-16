@@ -26,7 +26,6 @@ This repository is the source of truth for home-directory bootstrap config.
 | `dot_config/quinlan-shell/modules/codex.sh` | `~/.config/quinlan-shell/modules/codex.sh` | Timon-only Codex repo runtime handoff (`c`, `dev`) |
 | `dot_config/quinlan-shell/modules/local.sh` | `~/.config/quinlan-shell/modules/local.sh` | Optional machine-local override loader |
 | `dot_wezterm.lua.tmpl` | `~/.wezterm.lua` | WezTerm config |
-| `dot_claude/CLAUDE.md` | `~/.claude/CLAUDE.md` | Timon user-level Claude context (Timon only) |
 | `modify_dot_claude.json` | `~/.claude.json` | Managed Claude home MCP servers (modify-template) |
 | `dot_claude/modify_settings.json` | `~/.claude/settings.json` | Managed Claude home settings (modify-template) |
 | `dot_claude/statusline-command.sh` | `~/.claude/statusline-command.sh` | Claude Code status line command |
